@@ -1,6 +1,6 @@
 (async function initVRMModules() {
             const loadModules = async () => {
-                console.log('[VRM] 开始加载依赖模块');
+                console.log(window.t ? window.t('modelManager.vrmLoadingDependencies') : '[VRM] 开始加载依赖模块');
                 const vrmModules = [
                     '/static/vrm-orientation.js',
                     '/static/vrm-core.js',
