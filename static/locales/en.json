@@ -1071,6 +1071,10 @@
       "zh-CN": "Simplified Chinese",
       "en": "English"
     },
+    "interval": {
+      "chatIntervalBase": "Base Interval",
+      "visionInterval": "Read Interval"
+    },
     "toggles": {
       "allowInterrupt": "Allow Interrupt",
       "mergeMessages": "Merge Messages",
@@ -1087,7 +1091,9 @@
       "masterRequired": "Please enable Agent Master Switch first",
       "enabled": "{{name}} Enabled",
       "disabled": "{{name}} Disabled",
-      "enableFailed": "{{name}} Enable Failed"
+      "enableFailed": "{{name}} Enable Failed",
+      "userPluginAdapting": "User Plugin (Developing)",
+      "moltbotAdapting": "moltbot (Developing)"
     }
   },
   "subtitle": {

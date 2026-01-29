@@ -1131,6 +1131,10 @@
       "zh-CN": "简体中文",
       "en": "English"
     },
+    "interval": {
+      "chatIntervalBase": "基础间隔",
+      "visionInterval": "读取间隔"
+    },
     "toggles": {
       "allowInterrupt": "允许打断",
       "mergeMessages": "合并消息",
@@ -1147,7 +1151,9 @@
       "masterRequired": "请先开启Agent总开关",
       "enabled": "{{name}}已开启",
       "disabled": "{{name}}已关闭",
-      "enableFailed": "{{name}}开启失败"
+      "enableFailed": "{{name}}开启失败",
+      "userPluginAdapting": "用户插件（开发中）",
+      "moltbotAdapting": "moltbot（开发中）"
     }
   },
   "subtitle": {

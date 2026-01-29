@@ -74,12 +74,12 @@
     "glm": {
       "key": "glm",
       "name": "智谱",
-      "description": "价格适中，支持Agent模式，不支持自定义语音",
+      "description": "目前完全免费，支持Agent模式，不支持自定义语音",
       "openrouter_url": "https://open.bigmodel.cn/api/paas/v4",
-      "summary_model": "glm-4.5-flash",
-      "correction_model": "glm-4.5-air",
-      "emotion_model": "glm-4.5-flash",
-      "vision_model": "glm-4v-plus-0111"
+      "summary_model": "glm-4.7-flash",
+      "correction_model": "glm-4.7-flash",
+      "emotion_model": "glm-4.7-flash",
+      "vision_model": "glm-4.6v-flash"
     },
     "step": {
       "key": "step",
@@ -96,8 +96,8 @@
       "name": "硅基流动",
       "description": "性价比高，支持Agent模式，不支持自定义语音",
       "openrouter_url": "https://api.siliconflow.cn/v1",
-      "summary_model": "Qwen/Qwen3-Next-80B-A3B-Instruct",
-      "correction_model": "deepseek-ai/DeepSeek-V3.2-Exp",
+      "summary_model": "inclusionAI/Ling-flash-2.0",
+      "correction_model": "deepseek-ai/DeepSeek-V3.2",
       "emotion_model": "inclusionAI/Ling-mini-2.0",
       "vision_model": "Qwen/Qwen3-VL-235B-A22B-Instruct"
     },

@@ -318,6 +318,7 @@ MODELS_EXTRA_BODY_MAP = {
     # GLM 系列
     "glm-4.5-air": EXTRA_BODY_CLAUDE,
     "glm-4.6v-flash": EXTRA_BODY_CLAUDE,
+    "glm-4.7-flash": EXTRA_BODY_CLAUDE,
     "glm-4.6v": EXTRA_BODY_CLAUDE,
     # Silicon (zai-org) - 使用 Qwen 格式
     "zai-org/GLM-4.6V": EXTRA_BODY_OPENAI,

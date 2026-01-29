@@ -824,5 +824,52 @@
     "switchingToDefault": "現在のモデルが削除されたため、デフォルトモデルに切り替えます...",
     "userDocuments": "ユーザードキュメント",
     "localUpload": "ローカルアップロード"
+  },
+  "settings": {
+    "menu": {
+      "live2dSettings": "Live2D設定",
+      "modelSettings": "モデル管理",
+      "apiKeys": "APIキー",
+      "characterManage": "キャラクター管理",
+      "voiceClone": "ボイスクローン",
+      "memoryBrowser": "メモリブラウザ",
+      "steamWorkshop": "Steamワークショップ",
+      "memoryManage": "メモリ管理",
+      "characterSettings": "キャラクター設定",
+      "live2dManage": "Live2D管理",
+      "apiSettings": "API設定",
+      "language": "言語"
+    },
+    "language": {
+      "title": "言語を選択",
+      "zh-CN": "簡体字中国語",
+      "en": "英語",
+      "ja": "日本語",
+      "zh-TW": "繁体字中国語"
+    },
+    "interval": {
+      "chatIntervalBase": "基本間隔",
+      "visionInterval": "読取間隔"
+    },
+    "toggles": {
+      "allowInterrupt": "割り込み許可",
+      "mergeMessages": "メッセージ結合",
+      "proactiveChat": "自発的会話",
+      "proactiveVision": "自発的視覚",
+      "agentMaster": "Agentマスタースイッチ",
+      "keyboardControl": "キーボード/マウス操作",
+      "userPlugin": "ユーザープラグイン",
+      "mcpTools": "MCPツール",
+      "focusMode": "割り込み許可",
+      "unavailable": "{{name}}は利用できません",
+      "checking": "確認中...",
+      "serverOffline": "Agentサーバーがオフラインです",
+      "masterRequired": "先にAgentマスタースイッチを有効にしてください",
+      "enabled": "{{name}}を有効にしました",
+      "disabled": "{{name}}を無効にしました",
+      "enableFailed": "{{name}}の有効化に失敗しました",
+      "userPluginAdapting": "ユーザープラグイン（開発中）",
+      "moltbotAdapting": "moltbot（開発中）"
+    }
   }
 }

@@ -1146,7 +1146,9 @@
       "masterRequired": "請先開啓Agent總開關",
       "enabled": "{{name}}已開啓",
       "disabled": "{{name}}已關閉",
-      "enableFailed": "{{name}}開啓失敗"
+      "enableFailed": "{{name}}開啓失敗",
+      "userPluginAdapting": "用戶插件（開發中）",
+      "moltbotAdapting": "moltbot（開發中）"
     }
   },
   "subtitle": {

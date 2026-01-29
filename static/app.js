@@ -314,10 +314,14 @@ function init_app() {
     let proactiveChatTimer = null;
     let proactiveChatBackoffLevel = 0; // 退避级别：0=30s, 1=75s, 2=187.5s, etc.
     let isProactiveChatRunning = false; // 锁：防止主动搭话执行期间重复触发
-    const PROACTIVE_CHAT_BASE_DELAY = 30000; // 30秒基础延迟
-    // 主动视觉在语音时的单帧推送（当同时开启主动视觉 && 语音对话时，每15秒推送一帧）
+    // 主动搭话时间间隔（可自定义，默认30秒）
+    const DEFAULT_PROACTIVE_CHAT_INTERVAL = 30; // 默认30秒
+    let proactiveChatInterval = DEFAULT_PROACTIVE_CHAT_INTERVAL;
+    // 主动视觉在语音时的单帧推送（当同时开启主动视觉 && 语音对话时）
     let proactiveVisionFrameTimer = null;
-    const PROACTIVE_VISION_FRAME_INTERVAL = 15000; // 15秒
+    // 主动视觉时间间隔（可自定义，默认15秒）
+    const DEFAULT_PROACTIVE_VISION_INTERVAL = 15; // 默认15秒
+    let proactiveVisionInterval = DEFAULT_PROACTIVE_VISION_INTERVAL;
 
     // 截图最大尺寸（720p，用于节流数据传输）
     const MAX_SCREENSHOT_WIDTH = 1280;
@@ -370,6 +374,8 @@ function init_app() {
     window.proactiveVisionEnabled = proactiveVisionEnabled;
     window.mergeMessagesEnabled = mergeMessagesEnabled;
     window.focusModeEnabled = focusModeEnabled;
+    window.proactiveChatInterval = proactiveChatInterval;
+    window.proactiveVisionInterval = proactiveVisionInterval;
 
     // WebSocket心跳保活
     let heartbeatInterval = null;
@@ -6326,8 +6332,8 @@ function init_app() {
         }
 
         // 计算延迟时间（指数退避，倍率2.5）
-        const delay = PROACTIVE_CHAT_BASE_DELAY * Math.pow(2.5, proactiveChatBackoffLevel);
-        console.log(`主动搭话：${delay / 1000}秒后触发（退避级别：${proactiveChatBackoffLevel}）`);
+        const delay = (proactiveChatInterval * 1000) * Math.pow(2.5, proactiveChatBackoffLevel);
+        console.log(`主动搭话：${delay / 1000}秒后触发（基础间隔：${proactiveChatInterval}秒，退避级别：${proactiveChatBackoffLevel}）`);
 
         proactiveChatTimer = setTimeout(async () => {
             // 双重检查锁：定时器触发时再次检查是否正在执行
@@ -6578,7 +6584,7 @@ function init_app() {
             }
 
             await sendOneProactiveVisionFrame();
-        }, PROACTIVE_VISION_FRAME_INTERVAL);
+        }, proactiveVisionInterval * 1000);
     }
 
     function stopProactiveVisionDuringSpeech() {
@@ -6698,12 +6704,20 @@ function init_app() {
         const currentFocus = typeof window.focusModeEnabled !== 'undefined'
             ? window.focusModeEnabled
             : focusModeEnabled;
+        const currentProactiveChatInterval = typeof window.proactiveChatInterval !== 'undefined'
+            ? window.proactiveChatInterval
+            : proactiveChatInterval;
+        const currentProactiveVisionInterval = typeof window.proactiveVisionInterval !== 'undefined'
+            ? window.proactiveVisionInterval
+            : proactiveVisionInterval;
 
         const settings = {
             proactiveChatEnabled: currentProactive,
             proactiveVisionEnabled: currentVision,
             mergeMessagesEnabled: currentMerge,
-            focusModeEnabled: currentFocus
+            focusModeEnabled: currentFocus,
+            proactiveChatInterval: currentProactiveChatInterval,
+            proactiveVisionInterval: currentProactiveVisionInterval
         };
         localStorage.setItem('project_neko_settings', JSON.stringify(settings));
 
@@ -6712,6 +6726,8 @@ function init_app() {
         proactiveVisionEnabled = currentVision;
         mergeMessagesEnabled = currentMerge;
         focusModeEnabled = currentFocus;
+        proactiveChatInterval = currentProactiveChatInterval;
+        proactiveVisionInterval = currentProactiveVisionInterval;
     }
 
     // 暴露到全局作用域，供 live2d.js 等其他模块调用
@@ -6735,12 +6751,20 @@ function init_app() {
                 // Focus模式：从localStorage加载设置
                 focusModeEnabled = settings.focusModeEnabled ?? false;
                 window.focusModeEnabled = focusModeEnabled; // 同步到全局
+                // 主动搭话时间间隔：从localStorage加载设置
+                proactiveChatInterval = settings.proactiveChatInterval ?? DEFAULT_PROACTIVE_CHAT_INTERVAL;
+                window.proactiveChatInterval = proactiveChatInterval; // 同步到全局
+                // 主动视觉时间间隔：从localStorage加载设置
+                proactiveVisionInterval = settings.proactiveVisionInterval ?? DEFAULT_PROACTIVE_VISION_INTERVAL;
+                window.proactiveVisionInterval = proactiveVisionInterval; // 同步到全局
 
                 console.log('已加载设置:', {
                     proactiveChatEnabled: proactiveChatEnabled,
                     proactiveVisionEnabled: proactiveVisionEnabled,
                     mergeMessagesEnabled: mergeMessagesEnabled,
                     focusModeEnabled: focusModeEnabled,
+                    proactiveChatInterval: proactiveChatInterval,
+                    proactiveVisionInterval: proactiveVisionInterval,
                     focusModeDesc: focusModeEnabled ? 'AI说话时自动静音麦克风（不允许打断）' : '允许打断AI说话'
                 });
             } else {
@@ -6749,6 +6773,8 @@ function init_app() {
                 window.proactiveChatEnabled = proactiveChatEnabled;
                 window.mergeMessagesEnabled = mergeMessagesEnabled;
                 window.focusModeEnabled = focusModeEnabled;
+                window.proactiveChatInterval = proactiveChatInterval;
+                window.proactiveVisionInterval = proactiveVisionInterval;
             }
         } catch (error) {
             console.error('加载设置失败:', error);
@@ -6756,6 +6782,8 @@ function init_app() {
             window.proactiveChatEnabled = proactiveChatEnabled;
             window.mergeMessagesEnabled = mergeMessagesEnabled;
             window.focusModeEnabled = focusModeEnabled;
+            window.proactiveChatInterval = proactiveChatInterval;
+            window.proactiveVisionInterval = proactiveVisionInterval;
         }
     }
 
