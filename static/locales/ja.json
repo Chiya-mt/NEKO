@@ -1198,7 +1198,8 @@
       "loadFailed": "画面ソースの読み込みに失敗しました",
       "screens": "画面",
       "windows": "ウィンドウ",
-      "selected": "{{source}}を選択しました"
+      "selected": "{{source}}を選択しました",
+      "sourceLost": "画面共有で以前選択したウィンドウが見つかりません。全画面共有に切り替えました"
     }
   },
   "emotion": {

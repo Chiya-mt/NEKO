@@ -1149,7 +1149,8 @@
       "loadFailed": "Failed to load screen sources",
       "screens": "Screens",
       "windows": "Windows",
-      "selected": "Selected {{source}}"
+      "selected": "Selected {{source}}",
+      "sourceLost": "Screen sharing could not find previously selected window, switched to fullscreen sharing"
     }
   },
   "buttons": {

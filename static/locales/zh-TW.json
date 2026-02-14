@@ -1202,7 +1202,8 @@
       "loadFailed": "獲取屏幕源失敗",
       "screens": "屏幕",
       "windows": "窗口",
-      "selected": "已選擇 {{source}}"
+      "selected": "已選擇 {{source}}",
+      "sourceLost": "螢幕分享無法找到之前選擇的窗口，已切換為全螢幕分享"
     }
   },
   "buttons": {
