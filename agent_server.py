@@ -6,24 +6,25 @@ mimetypes.add_type("application/javascript", ".js")
 import asyncio
 import uuid
 import logging
-import json
 from typing import Dict, Any, Optional
 from datetime import datetime
 import time
 import multiprocessing as mp
+import queue
 import httpx
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 
-from config import TOOL_SERVER_PORT, USER_PLUGIN_SERVER_PORT, AGENT_MQ_PORT
-from brain.main_bridge import publish_main_event
-from brain.processor import Processor
+from config import TOOL_SERVER_PORT, USER_PLUGIN_SERVER_PORT
 from brain.planner import TaskPlanner
 from brain.analyzer import ConversationAnalyzer
 from brain.computer_use import ComputerUseAdapter
+from brain.browser_use_adapter import BrowserUseAdapter
 from brain.deduper import TaskDeduper
 from brain.task_executor import DirectTaskExecutor
+from utils.config_manager import get_config_manager
+from main_logic.agent_event_bus import AgentServerEventBridge
 
 
 app = FastAPI(title="N.E.K.O Tool Server")
@@ -34,10 +35,10 @@ logger, log_config = setup_logging(service_name="Agent", log_level=logging.INFO)
 
 
 class Modules:
-    processor: Processor | None = None
     planner: TaskPlanner | None = None
     analyzer: ConversationAnalyzer | None = None
     computer_use: ComputerUseAdapter | None = None
+    browser_use: BrowserUseAdapter | None = None
     deduper: TaskDeduper | None = None
     task_executor: DirectTaskExecutor | None = None  # 新增：合并的任务执行器
     # Task tracking
@@ -52,117 +53,12 @@ class Modules:
     computer_use_running: bool = False
     active_computer_use_task_id: Optional[str] = None
     # Agent feature flags (controlled by UI)
-    agent_flags: Dict[str, Any] = {"mcp_enabled": False, "computer_use_enabled": False, "user_plugin_enabled": False}
+    agent_flags: Dict[str, Any] = {"mcp_enabled": False, "computer_use_enabled": False, "browser_use_enabled": False, "user_plugin_enabled": False}
     # Notification queue for frontend (one-time messages)
     notification: Optional[str] = None
     # 使用统一的速率限制日志记录器（业务逻辑层面）
     throttled_logger: "ThrottledLogger" = None  # 延迟初始化
-    mq_server: Optional[asyncio.AbstractServer] = None
-    status_broadcast_task: Optional[asyncio.Task] = None
-    last_status_payload: Optional[str] = None
-
-
-def _build_task_status_payload() -> Dict[str, Any]:
-    items = []
-    for tid, info in Modules.task_registry.items():
-        try:
-            items.append({
-                "id": info.get("id", tid),
-                "type": info.get("type"),
-                "status": info.get("status"),
-                "start_time": info.get("start_time"),
-                "params": info.get("params"),
-                "result": info.get("result"),
-                "error": info.get("error"),
-                "lanlan_name": info.get("lanlan_name"),
-                "source": "runtime",
-            })
-        except Exception:
-            continue
-    if Modules.planner and hasattr(Modules.planner, "task_pool"):
-        for tid, task in Modules.planner.task_pool.items():
-            try:
-                task_dict = task.__dict__ if hasattr(task, "__dict__") else {}
-                items.append({
-                    "id": task_dict.get("id", tid),
-                    "status": task_dict.get("status", "queued"),
-                    "original_query": task_dict.get("original_query"),
-                    "meta": task_dict.get("meta"),
-                    "source": "planner",
-                })
-            except Exception:
-                continue
-
-    payload = {
-        "success": True,
-        "tasks": items,
-        "total_count": len(items),
-        "running_count": len([t for t in items if t.get("status") == "running"]),
-        "queued_count": len([t for t in items if t.get("status") == "queued"]),
-        "completed_count": len([t for t in items if t.get("status") == "completed"]),
-        "failed_count": len([t for t in items if t.get("status") == "failed"]),
-        "timestamp": datetime.now().isoformat(),
-    }
-    return payload
-
-
-async def _emit_task_result(lanlan_name: Optional[str], text: str) -> None:
-    if not text:
-        return
-    await publish_main_event({
-        "type": "task_result",
-        "lanlan_name": lanlan_name,
-        "text": text[:240],
-    })
-
-
-async def _task_status_broadcast_loop():
-    while True:
-        try:
-            await asyncio.sleep(0.8)
-            payload = _build_task_status_payload()
-            payload_str = json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)
-            if payload_str == Modules.last_status_payload:
-                continue
-            ok = await publish_main_event({
-                "type": "agent_task_status",
-                "payload": payload,
-            })
-            if ok:
-                Modules.last_status_payload = payload_str
-        except asyncio.CancelledError:
-            break
-        except Exception:
-            await asyncio.sleep(1.0)
-
-
-async def _handle_agent_mq_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
-    try:
-        while True:
-            raw = await reader.readline()
-            if not raw:
-                break
-            try:
-                payload = json.loads(raw.decode("utf-8"))
-            except Exception:
-                continue
-            if not isinstance(payload, dict):
-                continue
-            if payload.get("type") != "analyze_and_plan":
-                continue
-            messages = payload.get("messages", [])
-            lanlan_name = payload.get("lanlan_name")
-            if not isinstance(messages, list):
-                continue
-            if not Modules.analyzer_enabled:
-                continue
-            asyncio.create_task(_background_analyze_and_plan(messages, lanlan_name))
-    finally:
-        writer.close()
-        try:
-            await writer.wait_closed()
-        except Exception:
-            pass
+    agent_bridge: AgentServerEventBridge | None = None
 def _collect_existing_task_descriptions(lanlan_name: Optional[str] = None) -> list[tuple[str, str]]:
     """Return list of (task_id, description) for queued/running tasks, optionally filtered by lanlan_name."""
     items: list[tuple[str, str]] = []
@@ -278,6 +174,31 @@ def _now_iso() -> str:
     return datetime.utcnow().isoformat() + "Z"
 
 
+def _check_agent_api_gate() -> Dict[str, Any]:
+    """统一 Agent API 门槛检查。"""
+    try:
+        ok, reasons = get_config_manager().is_agent_api_ready()
+        return {"ready": ok, "reasons": reasons}
+    except Exception as e:
+        return {"ready": False, "reasons": [f"Agent API check failed: {e}"]}
+
+
+async def _emit_main_event(event_type: str, lanlan_name: Optional[str], **payload) -> None:
+    event = {"event_type": event_type, "lanlan_name": lanlan_name, **payload}
+    if Modules.agent_bridge:
+        sent = await Modules.agent_bridge.emit_to_main(event)
+        if sent:
+            return
+
+
+async def _on_session_event(event: Dict[str, Any]) -> None:
+    if (event or {}).get("event_type") == "analyze_request":
+        messages = event.get("messages", [])
+        lanlan_name = event.get("lanlan_name")
+        if isinstance(messages, list) and messages:
+            asyncio.create_task(_background_analyze_and_plan(messages, lanlan_name))
+
+
 def _spawn_task(kind: str, args: Dict[str, Any]) -> Dict[str, Any]:
     """
     生成任务（仅用于 computer_use 任务）
@@ -311,43 +232,8 @@ def _spawn_task(kind: str, args: Dict[str, Any]) -> Dict[str, Any]:
             "screenshot": args.get("screenshot"),
         })
         return info
-    elif kind == "processor":
-        # Create a runtime entry and execute the processor coroutine in background.
-        query = args.get("query", "") if isinstance(args, dict) else ""
-        info["params"] = {"query": query}
-        info["lanlan_name"] = None
-        Modules.task_registry[task_id] = info
-
-        async def _run_processor_task():
-            try:
-                result = await Modules.processor.process(query)
-                info["status"] = "completed" if result.get("can_execute") else "failed"
-                info["result"] = result
-
-                # Notify main_server if executed
-                if result.get("can_execute"):
-                    summary = f'你的任务\"{query[:50]}\"已完成'
-                    try:
-                        await _emit_task_result(info.get("lanlan_name"), summary[:240])
-                    except Exception:
-                        pass
-                logger.info(f"[MCP] ✅ Spawned processor task {task_id} completed")
-            except Exception as e:
-                info["status"] = "failed"
-                info["error"] = str(e)
-                logger.error(f"[MCP] ❌ Spawned processor task {task_id} failed: {e}")
-
-        # Fire-and-forget to preserve old behavior
-        try:
-            asyncio.create_task(_run_processor_task())
-        except Exception:
-            # In case event loop not running, mark as failed
-            info["status"] = "failed"
-            info["error"] = "failed to schedule processor coroutine"
-
-        return info
     else:
-        raise ValueError(f"Unknown task kind: {kind}. Note: 'processor' tasks now use coroutines directly.")
+        raise ValueError(f"Unknown task kind: {kind}")
 
 
 def _start_computer_use_process(task_info: Dict[str, Any]) -> None:
@@ -372,54 +258,68 @@ def _start_computer_use_process(task_info: Dict[str, Any]) -> None:
 
 async def _poll_results_loop():
     while True:
-        await asyncio.sleep(0.1)
         try:
             if Modules.result_queue is None:
+                await asyncio.sleep(0.2)
                 continue
-            while True:
+            try:
+                msg = await asyncio.to_thread(Modules.result_queue.get, True, 0.5)
+            except queue.Empty:
+                continue
+            if not isinstance(msg, dict):
+                continue
+            tid = msg.get("task_id")
+            if not tid or tid not in Modules.task_registry:
+                continue
+            info = Modules.task_registry[tid]
+            info["status"] = "completed" if msg.get("success") else "failed"
+            if "result" in msg:
+                info["result"] = msg["result"]
+            if "error" in msg:
+                info["error"] = msg["error"]
+            # If this was the active computer-use task, allow next to run
+            if Modules.active_computer_use_task_id == tid:
+                Modules.computer_use_running = False
+                Modules.active_computer_use_task_id = None
+            try:
+                await _emit_main_event(
+                    "task_update",
+                    info.get("lanlan_name"),
+                    task={
+                        "id": tid,
+                        "status": info.get("status"),
+                        "type": info.get("type"),
+                        "start_time": info.get("start_time"),
+                        "end_time": _now_iso(),
+                        "error": info.get("error"),
+                    },
+                )
+            except Exception:
+                pass
+            # Notify main server about completion so it can insert an extra reply next turn
+            try:
+                summary = "任务已完成"
                 try:
-                    msg = Modules.result_queue.get_nowait()
-                except Exception:
-                    break
-                if not isinstance(msg, dict):
-                    continue
-                tid = msg.get("task_id")
-                if not tid or tid not in Modules.task_registry:
-                    continue
-                info = Modules.task_registry[tid]
-                info["status"] = "completed" if msg.get("success") else "failed"
-                if "result" in msg:
-                    info["result"] = msg["result"]
-                if "error" in msg:
-                    info["error"] = msg["error"]
-                # If this was the active computer-use task, allow next to run
-                if Modules.active_computer_use_task_id == tid:
-                    Modules.computer_use_running = False
-                    Modules.active_computer_use_task_id = None
-                # Notify main server about completion so it can insert an extra reply next turn
-                try:
-                    summary = "任务已完成"
-                    try:
-                        # Build a compact result summary if possible
-                        r = info.get("result")
-                        if isinstance(r, dict):
-                            detail = r.get("result") or r.get("message") or r.get("reason") or ""
-                        else:
-                            detail = str(r) if r is not None else ""
-                        # Include task description if available
-                        params = info.get("params") or {}
-                        desc = params.get("query") or params.get("instruction") or ""
-                        if detail and desc:
-                            summary = f"你的任务 “{desc}” 已完成：{detail}"[:240]
-                        elif detail:
-                            summary = f"你的任务已完成：{detail}"[:240]
-                        elif desc:
-                            summary = f"你的任务 “{desc}” 已完成"[:240]
-                    except Exception:
-                        pass
-                    await _emit_task_result(info.get("lanlan_name"), summary)
+                    # Build a compact result summary if possible
+                    r = info.get("result")
+                    if isinstance(r, dict):
+                        detail = r.get("result") or r.get("message") or r.get("reason") or ""
+                    else:
+                        detail = str(r) if r is not None else ""
+                    # Include task description if available
+                    params = info.get("params") or {}
+                    desc = params.get("query") or params.get("instruction") or ""
+                    if detail and desc:
+                        summary = f"你的任务 “{desc}” 已完成：{detail}"[:240]
+                    elif detail:
+                        summary = f"你的任务已完成：{detail}"[:240]
+                    elif desc:
+                        summary = f"你的任务 “{desc}” 已完成"[:240]
                 except Exception:
                     pass
+                await _emit_main_event("task_result", info.get("lanlan_name"), text=summary)
+            except Exception:
+                pass
         except Exception:
             pass
 
@@ -528,9 +428,8 @@ async def _background_analyze_and_plan(messages: list[dict[str, Any]], lanlan_na
                     except Exception:
                         pass
                 
-                # 通知 main_server
                 try:
-                    await _emit_task_result(lanlan_name, summary[:240])
+                    await _emit_main_event("task_result", lanlan_name, text=summary[:240])
                     logger.info(f"[TaskExecutor] ✅ MCP task completed and notified: {result.task_description}")
                 except Exception as e:
                     logger.warning(f"[TaskExecutor] Failed to notify main_server: {e}")
@@ -546,10 +445,38 @@ async def _background_analyze_and_plan(messages: list[dict[str, Any]], lanlan_na
                     ti = _spawn_task("computer_use", {"instruction": result.task_description, "screenshot": None})
                     ti["lanlan_name"] = lanlan_name
                     logger.info(f"[ComputerUse] 🚀 Scheduled task {ti['id']}: {result.task_description[:50]}...")
+                    try:
+                        await _emit_main_event(
+                            "task_update",
+                            lanlan_name,
+                            task={
+                                "id": ti.get("id"),
+                                "status": ti.get("status"),
+                                "type": ti.get("type"),
+                                "start_time": ti.get("start_time"),
+                                "params": ti.get("params", {}),
+                            },
+                        )
+                    except Exception:
+                        pass
                 else:
                     logger.info(f"[ComputerUse] Duplicate task detected, matched with {matched}")
             else:
                 logger.warning(f"[ComputerUse] ⚠️ Task requires ComputerUse but it's disabled")
+        elif result.execution_method == 'browser_use':
+            if Modules.agent_flags.get("browser_use_enabled", False) and Modules.browser_use:
+                try:
+                    bres = await Modules.browser_use.run_instruction(result.task_description)
+                    summary = f'你的任务"{result.task_description}"已完成'
+                    if isinstance(bres, dict):
+                        detail = bres.get("result") or bres.get("message") or ""
+                        if detail:
+                            summary = f'你的任务"{result.task_description}"已完成：{str(detail)[:150]}'
+                    await _emit_main_event("task_result", lanlan_name, text=summary[:240])
+                except Exception as e:
+                    logger.warning(f"[BrowserUse] Failed: {e}")
+            else:
+                logger.warning("[BrowserUse] Task requires BrowserUse but it is disabled")
         
         else:
             logger.info(f"[TaskExecutor] No suitable execution method: {result.reason}")
@@ -561,11 +488,11 @@ async def _background_analyze_and_plan(messages: list[dict[str, Any]], lanlan_na
 async def startup():
     # 初始化新的合并执行器（推荐使用）
     Modules.computer_use = ComputerUseAdapter()
-    Modules.task_executor = DirectTaskExecutor(computer_use=Modules.computer_use)
+    Modules.browser_use = BrowserUseAdapter()
+    Modules.task_executor = DirectTaskExecutor(computer_use=Modules.computer_use, browser_use=Modules.browser_use)
     Modules.deduper = TaskDeduper()
     
-    # 保留旧模块用于兼容（/process, /plan 端点仍然可用）
-    Modules.processor = Processor()
+    # 保留 planner/analyzer 以支持能力探测与后台分析开关
     Modules.planner = TaskPlanner(computer_use=Modules.computer_use)
     Modules.analyzer = ConversationAnalyzer()
     
@@ -610,95 +537,20 @@ async def startup():
         Modules.poller_task = asyncio.create_task(_poll_results_loop())
     # Start computer-use scheduler
     asyncio.create_task(_computer_use_scheduler_loop())
-    # Start MQ server to receive analyze-and-plan events from main_server.
-    Modules.mq_server = await asyncio.start_server(
-        _handle_agent_mq_client,
-        host="127.0.0.1",
-        port=AGENT_MQ_PORT,
-    )
-    # Start status broadcaster to push task updates to main_server.
-    if Modules.status_broadcast_task is None:
-        Modules.status_broadcast_task = asyncio.create_task(_task_status_broadcast_loop())
+    # Start ZeroMQ bridge for main_server events
+    try:
+        Modules.agent_bridge = AgentServerEventBridge(on_session_event=_on_session_event)
+        await Modules.agent_bridge.start()
+    except Exception as e:
+        logger.warning(f"[Agent] Event bridge startup failed: {e}")
     
     logger.info("[Agent] ✅ Agent server started with simplified task executor")
-
-
-@app.on_event("shutdown")
-async def shutdown():
-    if Modules.status_broadcast_task is not None:
-        Modules.status_broadcast_task.cancel()
-        Modules.status_broadcast_task = None
-    if Modules.mq_server is not None:
-        Modules.mq_server.close()
-        try:
-            await Modules.mq_server.wait_closed()
-        except Exception:
-            pass
-        Modules.mq_server = None
 
 
 @app.get("/health")
 async def health():
     return {"status": "ok", "agent_flags": Modules.agent_flags}
 
-
-# 1) 处理器模块：接受自然语言query，直接执行MCP工具（不再使用子进程）
-@app.post("/process")
-async def process_query(payload: Dict[str, Any]):
-    if not Modules.processor:
-        raise HTTPException(503, "Processor not ready")
-    query = (payload or {}).get("query", "").strip()
-    if not query:
-        raise HTTPException(400, "query required")
-    lanlan_name = (payload or {}).get("lanlan_name")
-    
-    # Log MCP processing request
-    logger.info(f"[MCP] Received process request from {lanlan_name}: {query[:100]}...")
-    
-    # Dedup check
-    dup, matched = await _is_duplicate_task(query, lanlan_name)
-    if dup:
-        logger.info(f"[MCP] Duplicate task detected, matched with {matched}")
-        return JSONResponse(content={"success": False, "duplicate": True, "matched_id": matched}, status_code=409)
-    
-    # 直接使用协程执行（不再启动子进程）
-    task_id = str(uuid.uuid4())
-    info = {
-        "id": task_id,
-        "type": "processor",
-        "status": "running",
-        "start_time": _now_iso(),
-        "params": {"query": query},
-        "lanlan_name": lanlan_name,
-        "result": None,
-        "error": None,
-    }
-    Modules.task_registry[task_id] = info
-    
-    # 后台执行（保持原有的异步行为）
-    async def _run_processor():
-        try:
-            result = await Modules.processor.process(query)
-            info["status"] = "completed" if result.get('can_execute') else "failed"
-            info["result"] = result
-            
-            # 通知 main_server
-            if result.get('can_execute'):
-                summary = f'你的任务"{query[:50]}"已完成'
-                try:
-                    await _emit_task_result(lanlan_name, summary[:240])
-                except Exception:
-                    pass
-            logger.info(f"[MCP] ✅ Process task {task_id} completed")
-        except Exception as e:
-            info["status"] = "failed"
-            info["error"] = str(e)
-            logger.error(f"[MCP] ❌ Process task {task_id} failed: {e}")
-    
-    asyncio.create_task(_run_processor())
-    
-    logger.info(f"[MCP] Started processor task {task_id} for {lanlan_name}")
-    return {"success": True, "task_id": task_id, "status": info["status"], "start_time": info["start_time"]}
 
 # 插件直接触发路由（放在顶层，确保不在其它函数体内）
 @app.post("/plugin/execute")
@@ -761,7 +613,7 @@ async def plugin_execute_direct(payload: Dict[str, Any]):
             if accepted:
                 try:
                     summary = f'插件任务 "{plugin_id}" 已接受'
-                    await _emit_task_result(lanlan_name, summary[:240])
+                    await _emit_main_event("task_result", lanlan_name, text=summary[:240])
                 except Exception:
                     pass
         except Exception as e:
@@ -773,66 +625,6 @@ async def plugin_execute_direct(payload: Dict[str, Any]):
     # 如果未来需要集中管理后台插件任务，可将 Task 收集到 Modules 上的集合并在 done 后移除
     return {"success": True, "task_id": task_id, "status": info["status"], "start_time": info["start_time"]}
 
-
-
-# 2) 规划器模块：预载server能力，评估可执行性，入池并分解步骤
-@app.post("/plan")
-async def plan_task(payload: Dict[str, Any]):
-    if not Modules.planner:
-        raise HTTPException(503, "Planner not ready")
-    query = (payload or {}).get("query", "").strip()
-    task_id = (payload or {}).get("task_id") or str(uuid.uuid4())
-    if not query:
-        raise HTTPException(400, "query required")
-    lanlan_name = (payload or {}).get("lanlan_name")
-    
-    # Log MCP planning request
-    logger.info(f"[MCP] Received plan request from {lanlan_name} for task {task_id}: {query[:100]}...")
-    
-    # Dedup check against existing tasks
-    dup, matched = await _is_duplicate_task(query, lanlan_name)
-    if dup:
-        logger.info(f"[MCP] Duplicate task detected, matched with {matched}")
-        return JSONResponse(content={"success": False, "duplicate": True, "matched_id": matched}, status_code=409)
-    # Do NOT register before dedup/scheduling
-    task = await Modules.planner.assess_and_plan(task_id, query, register=False)
-    try:
-        task.meta["lanlan_name"] = lanlan_name
-    except Exception:
-        pass
-    scheduled = []
-    # If MCP plan executable → schedule steps as processor tasks
-    if task.meta.get("mcp", {}).get("can_execute"):
-        logger.info(f"[MCP] Task {task_id} will be executed by MCP with {len(task.steps)} steps")
-        for step in task.steps:
-            d2, m2 = await _is_duplicate_task(step, lanlan_name)
-            if d2:
-                scheduled.append({"duplicate": True, "matched_id": m2, "query": step})
-                continue
-            ti = _spawn_task("processor", {"query": step})
-            ti["lanlan_name"] = lanlan_name
-            scheduled.append({"task_id": ti["id"], "type": "processor", "start_time": ti["start_time"]})
-            logger.info(f"[MCP] Scheduled processor task {ti['id']} for step: {step[:50]}...")
-    else:
-        # If computer use suggested → schedule one-shot
-        cu_dec = task.meta.get("computer_use_decision") or {}
-        if cu_dec.get("use_computer"):
-            logger.info(f"[MCP] Task {task_id} will be executed by Computer Use")
-            d3, m3 = await _is_duplicate_task(task.original_query, lanlan_name)
-            if d3:
-                scheduled.append({"duplicate": True, "matched_id": m3, "query": task.original_query})
-            else:
-                ti = _spawn_task("computer_use", {"instruction": task.original_query, "screenshot": None})
-                ti["lanlan_name"] = lanlan_name
-                scheduled.append({"task_id": ti["id"], "type": "computer_use", "start_time": ti["start_time"]})
-        else:
-            logger.info(f"[MCP] Task {task_id} cannot be executed by any available method")
-    # Now safe to register this logical task into pool
-    try:
-        Modules.planner.task_pool[task.id] = task
-    except Exception:
-        pass
-    return {"success": True, "task": task.__dict__, "scheduled": scheduled}
 
 
 @app.get("/tasks/{task_id}")
@@ -870,6 +662,7 @@ async def get_agent_flags():
         "success": True, 
         "agent_flags": Modules.agent_flags,
         "analyzer_enabled": Modules.analyzer_enabled,
+        "agent_api_gate": _check_agent_api_gate(),
         "notification": note
     }
 
@@ -878,7 +671,18 @@ async def get_agent_flags():
 async def set_agent_flags(payload: Dict[str, Any]):
     mf = (payload or {}).get("mcp_enabled")
     cf = (payload or {}).get("computer_use_enabled")
+    bf = (payload or {}).get("browser_use_enabled")
     uf = (payload or {}).get("user_plugin_enabled")
+    # Agent API gate: if any agent sub-feature is being enabled, gate must pass.
+    gate = _check_agent_api_gate()
+    if gate.get("ready") is not True and any(x is True for x in (mf, cf, bf, uf)):
+        Modules.agent_flags["mcp_enabled"] = False
+        Modules.agent_flags["computer_use_enabled"] = False
+        Modules.agent_flags["browser_use_enabled"] = False
+        Modules.agent_flags["user_plugin_enabled"] = False
+        Modules.notification = f"无法开启 Agent: {(gate.get('reasons') or ['Agent API 未配置'])[0]}"
+        return {"success": True, "agent_flags": Modules.agent_flags}
+
     prev_up = Modules.agent_flags.get("user_plugin_enabled", False)
     
     # 1. Handle MCP Flag with Capability Check
@@ -928,6 +732,27 @@ async def set_agent_flags(payload: Dict[str, Any]):
                     logger.error(f"[Agent] Cannot enable Computer Use: Check failed {e}")
         else: # Disabling
             Modules.agent_flags["computer_use_enabled"] = False
+
+    # 2.5. Handle Browser Use Flag with Capability Check
+    if isinstance(bf, bool):
+        if bf:
+            if not getattr(Modules, "browser_use", None):
+                Modules.agent_flags["browser_use_enabled"] = False
+                Modules.notification = "无法开启 Browser Use: 模块未加载"
+            else:
+                try:
+                    avail = Modules.browser_use.is_available()
+                    if avail.get("ready"):
+                        Modules.agent_flags["browser_use_enabled"] = True
+                    else:
+                        Modules.agent_flags["browser_use_enabled"] = False
+                        reason = avail.get('reasons', [])[0] if avail.get('reasons') else '未知原因'
+                        Modules.notification = f"无法开启 Browser Use: {reason}"
+                except Exception as e:
+                    Modules.agent_flags["browser_use_enabled"] = False
+                    Modules.notification = f"开启 Browser Use 失败: {str(e)}"
+        else:
+            Modules.agent_flags["browser_use_enabled"] = False
             
     if isinstance(uf, bool):
         if uf:  # Attempting to enable UserPlugin
@@ -968,35 +793,11 @@ async def set_agent_flags(payload: Dict[str, Any]):
     return {"success": True, "agent_flags": Modules.agent_flags}
 
 
-# 3) 分析器模块：接收 cross-server 的对话片段，识别潜在任务，转发到规划器
-@app.post("/analyze_and_plan")
-async def analyze_and_plan(payload: Dict[str, Any]):
-    # 检查 analyzer 是否已启用（由 agent 总开关控制）
-    if not Modules.analyzer_enabled:
-        return {"success": False, "status": "analyzer_disabled", "message": "Analyzer is disabled"}
-    if not Modules.analyzer or not Modules.planner:
-        raise HTTPException(503, "Analyzer/Planner not ready")
-    messages = (payload or {}).get("messages", [])
-    if not isinstance(messages, list):
-        raise HTTPException(400, "messages must be a list of {role, text}")
-    # Previously forwarded messages to a user plugin endpoint (/plugin/testPlugin).
-    # This forwarding has been removed to avoid relying on that endpoint.
-    # If in future a safe user-plugin integration is needed, implement a provider
-    # that enumerates plugins and forwards to configured endpoints with retry/backoff.
-    # Preserve check and a light log when user_plugin_enabled is true for traceability.
-    try:
-        if Modules.agent_flags.get("user_plugin_enabled", False):
-            logger.info("user_plugin_enabled is true but /plugin/testPlugin forwarding is disabled.")
-    except Exception:
-        pass  # Defensive: catch edge cases in flag access
-
-    # Fire-and-forget background processing and scheduling
-    asyncio.create_task(_background_analyze_and_plan(messages, (payload or {}).get("lanlan_name")))
-    return {"success": True, "status": "processed", "accepted_at": _now_iso()}
-
-
 @app.get("/computer_use/availability")
 async def computer_use_availability():
+    gate = _check_agent_api_gate()
+    if gate.get("ready") is not True:
+        return {"ready": False, "reasons": gate.get("reasons", ["Agent API 未配置"])}
     if not Modules.computer_use:
         # Auto-update flag if module missing
         if Modules.agent_flags.get("computer_use_enabled"):
@@ -1013,6 +814,16 @@ async def computer_use_availability():
         Modules.notification = f"Computer Use 不可用: {status.get('reasons', [])[0] if status.get('reasons') else '未知原因'}"
         
     return status
+
+
+@app.get("/browser_use/availability")
+async def browser_use_availability():
+    gate = _check_agent_api_gate()
+    if gate.get("ready") is not True:
+        return {"ready": False, "reasons": gate.get("reasons", ["Agent API 未配置"])}
+    if not Modules.browser_use:
+        raise HTTPException(503, "BrowserUse not ready")
+    return Modules.browser_use.is_available()
 
 
 @app.post("/computer_use/run")
@@ -1042,8 +853,25 @@ async def computer_use_run(payload: Dict[str, Any]):
     return {"success": True, "task_id": info["id"], "status": info["status"], "start_time": info["start_time"]}
 
 
+@app.post("/browser_use/run")
+async def browser_use_run(payload: Dict[str, Any]):
+    if not Modules.browser_use:
+        raise HTTPException(503, "BrowserUse not ready")
+    instruction = (payload or {}).get("instruction", "").strip()
+    if not instruction:
+        raise HTTPException(400, "instruction required")
+    try:
+        result = await Modules.browser_use.run_instruction(instruction)
+        return {"success": bool(result.get("success", False)), "result": result}
+    except Exception as e:
+        return JSONResponse(content={"success": False, "error": str(e)}, status_code=500)
+
+
 @app.get("/mcp/availability")
 async def mcp_availability():
+    gate = _check_agent_api_gate()
+    if gate.get("ready") is not True:
+        return {"ready": False, "capabilities_count": 0, "reasons": gate.get("reasons", ["Agent API 未配置"])}
     if not Modules.planner:
         # Auto-update flag if planner missing
         if Modules.agent_flags.get("mcp_enabled"):

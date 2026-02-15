@@ -10,95 +10,15 @@ Handles agent-related endpoints including:
 """
 
 import logging
-import asyncio
-import json
 
 from fastapi import APIRouter, Request, Body
 from fastapi.responses import JSONResponse
 import httpx
 from .shared_state import get_session_manager, get_config_manager
-from config import TOOL_SERVER_PORT, USER_PLUGIN_SERVER_PORT, MAIN_AGENT_EVENT_PORT
+from config import TOOL_SERVER_PORT, USER_PLUGIN_SERVER_PORT
 
 router = APIRouter(prefix="/api/agent", tags=["agent"])
 logger = logging.getLogger("Main")
-_mq_server = None
-
-
-async def _broadcast_ws_message(payload: dict, lanlan_name: str | None = None):
-    session_manager = get_session_manager()
-    targets = []
-    if lanlan_name and lanlan_name in session_manager:
-        targets = [session_manager[lanlan_name]]
-    else:
-        targets = list(session_manager.values())
-    for mgr in targets:
-        try:
-            if mgr.websocket and hasattr(mgr.websocket, "client_state") and mgr.websocket.client_state == mgr.websocket.client_state.CONNECTED:
-                await mgr.websocket.send_json(payload)
-        except Exception:
-            continue
-
-
-async def _handle_main_event_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
-    try:
-        while True:
-            raw = await reader.readline()
-            if not raw:
-                break
-            try:
-                event = json.loads(raw.decode("utf-8"))
-            except Exception:
-                continue
-            if not isinstance(event, dict):
-                continue
-
-            etype = event.get("type")
-            if etype == "agent_task_status":
-                payload = event.get("payload") or {}
-                # 主动推送任务状态到前端
-                await _broadcast_ws_message({"type": "agent_task_status", "data": payload})
-            elif etype == "task_result":
-                text = (event.get("text") or "").strip()
-                if not text:
-                    continue
-                lanlan = event.get("lanlan_name")
-                _config_manager = get_config_manager()
-                if not lanlan:
-                    _, her_name_current, _, _, _, _, _, _, _, _ = _config_manager.get_character_data()
-                    lanlan = her_name_current
-                session_manager = get_session_manager()
-                mgr = session_manager.get(lanlan)
-                if mgr:
-                    mgr.pending_extra_replies.append(text)
-                await _broadcast_ws_message({"type": "agent_task_result", "text": text, "lanlan_name": lanlan}, lanlan)
-    finally:
-        writer.close()
-        try:
-            await writer.wait_closed()
-        except Exception:
-            pass
-
-
-@router.on_event("startup")
-async def _startup_agent_router():
-    global _mq_server
-    _mq_server = await asyncio.start_server(
-        _handle_main_event_client,
-        host="127.0.0.1",
-        port=MAIN_AGENT_EVENT_PORT,
-    )
-
-
-@router.on_event("shutdown")
-async def _shutdown_agent_router():
-    global _mq_server
-    if _mq_server is not None:
-        _mq_server.close()
-        try:
-            await _mq_server.wait_closed()
-        except Exception:
-            pass
-        _mq_server = None
 
 
 @router.post('/flags')
@@ -123,6 +43,8 @@ async def update_agent_flags(request: Request):
                 forward_payload['mcp_enabled'] = bool(flags['mcp_enabled'])
             if 'computer_use_enabled' in flags:
                 forward_payload['computer_use_enabled'] = bool(flags['computer_use_enabled'])
+            if 'browser_use_enabled' in flags:
+                forward_payload['browser_use_enabled'] = bool(flags['browser_use_enabled'])
             # Forward user_plugin_enabled as well so agent_server receives UI toggles
             if 'user_plugin_enabled' in flags:
                 forward_payload['user_plugin_enabled'] = bool(flags['user_plugin_enabled'])
@@ -133,7 +55,7 @@ async def update_agent_flags(request: Request):
                         raise Exception(f"tool_server responded {r.status_code}")
         except Exception as e:
             # On failure, reset flags in core to safe state (include user_plugin flag)
-            mgr.update_agent_flags({'agent_enabled': False, 'computer_use_enabled': False, 'mcp_enabled': False, 'user_plugin_enabled': False})
+            mgr.update_agent_flags({'agent_enabled': False, 'computer_use_enabled': False, 'browser_use_enabled': False, 'mcp_enabled': False, 'user_plugin_enabled': False})
             return JSONResponse({"success": False, "error": f"tool_server forward failed: {e}"}, status_code=502)
         return {"success": True}
     except Exception as e:
@@ -212,6 +134,18 @@ async def proxy_up_availability():
         return JSONResponse({"ready": False, "reasons": [f"proxy error: {e}"]}, status_code=502)
 
 
+@router.get('/browser_use/availability')
+async def proxy_browser_availability():
+    try:
+        async with httpx.AsyncClient(timeout=1.5) as client:
+            r = await client.get(f"http://localhost:{TOOL_SERVER_PORT}/browser_use/availability")
+            if not r.is_success:
+                return JSONResponse({"ready": False, "reasons": [f"tool_server responded {r.status_code}"]}, status_code=502)
+            return r.json()
+    except Exception as e:
+        return JSONResponse({"ready": False, "reasons": [f"proxy error: {e}"]}, status_code=502)
+
+
 
 @router.get('/tasks')
 async def proxy_tasks():
@@ -260,25 +194,4 @@ async def proxy_admin_control(payload: dict = Body(...)):
             "error": f"Failed to execute admin control: {str(e)}"
         }, status_code=500)
 
-@router.post('/notify_task_result')
-async def notify_task_result(request: Request):
-    """供工具/任务服务回调：在下一次正常回复之后，插入一条任务完成提示。"""
-    try:
-        _config_manager = get_config_manager()
-        session_manager = get_session_manager()
-        data = await request.json()
-        # 如果未显式提供，则使用当前默认角色
-        _, her_name_current, _, _, _, _, _, _, _, _ = _config_manager.get_character_data()
-        lanlan = data.get('lanlan_name') or her_name_current
-        text = (data.get('text') or '').strip()
-        if not text:
-            return JSONResponse({"success": False, "error": "text required"}, status_code=400)
-        mgr = session_manager.get(lanlan)
-        if not mgr:
-            return JSONResponse({"success": False, "error": "lanlan not found"}, status_code=404)
-        # 将提示加入待插入队列
-        mgr.pending_extra_replies.append(text)
-        return {"success": True}
-    except Exception as e:
-        return JSONResponse({"success": False, "error": str(e)}, status_code=500)
 

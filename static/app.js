@@ -781,16 +781,6 @@ function init_app() {
                             }, 7500); // 7.5秒后执行
                         }
                     }
-                } else if (response.type === 'agent_task_status') {
-                    // main_server 主动推送的 agent 任务状态（替代前端轮询）
-                    if (window.live2dManager && response.data) {
-                        window.live2dManager.updateAgentTaskHUD(response.data);
-                    }
-                } else if (response.type === 'agent_task_result') {
-                    // 任务结果即时通知（正文仍会在下一轮由后端注入）
-                    if (response.text) {
-                        showStatusToast(response.text, 3500);
-                    }
                 } else if (response.type === 'expression') {
                     const lanlan = window.LanLan1;
                     const registry = lanlan && lanlan.registered_expressions;
@@ -799,6 +789,34 @@ function init_app() {
                         fn();
                     } else {
                         console.warn(window.t('console.unknownExpressionCommand'), response.message);
+                    }
+                } else if (response.type === 'agent_notification') {
+                    const msg = typeof response.text === 'string' ? response.text : '';
+                    if (msg) {
+                        setFloatingAgentStatus(msg);
+                    }
+                } else if (response.type === 'agent_task_update') {
+                    try {
+                        if (!window._agentTaskMap) window._agentTaskMap = new Map();
+                        const task = response.task || {};
+                        if (task.id) {
+                            window._agentTaskMap.set(task.id, task);
+                        }
+                        const tasks = Array.from(window._agentTaskMap.values());
+                        if (window.live2dManager && typeof window.live2dManager.updateAgentTaskHUD === 'function') {
+                            window.live2dManager.updateAgentTaskHUD({
+                                success: true,
+                                tasks,
+                                total_count: tasks.length,
+                                running_count: tasks.filter(t => t.status === 'running').length,
+                                queued_count: tasks.filter(t => t.status === 'queued').length,
+                                completed_count: tasks.filter(t => t.status === 'completed').length,
+                                failed_count: tasks.filter(t => t.status === 'failed').length,
+                                timestamp: new Date().toISOString()
+                            });
+                        }
+                    } catch (e) {
+                        console.warn('[App] 处理 agent_task_update 失败:', e);
                     }
                 } else if (response.type === 'system' && response.data === 'turn end') {
                     console.log(window.t('console.turnEndReceived'));
@@ -838,8 +856,8 @@ function init_app() {
                         setTimeout(async () => {
                             try {
                                 const emotionPromise = analyzeEmotion(fullText);
-                                const timeoutPromise = new Promise((_, reject) =>
-                                    setTimeout(() => reject(new Error(window.t ? window.t('error.emotionTimeout') : '情感分析超时')), 5000)
+                                const timeoutPromise = new Promise((_, reject) => 
+                                    setTimeout(() => reject(new Error('情感分析超时')), 5000)
                                 );
                                 
                                 const emotionResult = await Promise.race([emotionPromise, timeoutPromise]);
@@ -848,8 +866,7 @@ function init_app() {
                                     applyEmotion(emotionResult.emotion);
                                 }
                             } catch (error) {
-                                const timeoutMsg = window.t ? window.t('error.emotionTimeout') : '情感分析超时';
-                                if (error.message === timeoutMsg) {
+                                if (error.message === '情感分析超时') {
                                     console.warn(window.t('console.emotionAnalysisTimeout'));
                                 } else {
                                     console.warn(window.t('console.emotionAnalysisFailed'), error);
@@ -1851,7 +1868,7 @@ function init_app() {
         selectedMicrophoneId = deviceId;
 
         // 获取设备名称用于状态提示
-        let deviceName = window.t ? window.t('microphone.defaultDevice') : '系统默认麦克风';
+        let deviceName = '系统默认麦克风';
         if (deviceId) {
             try {
                 const devices = await navigator.mediaDevices.enumerateDevices();
@@ -2393,7 +2410,7 @@ function init_app() {
                 micButton.classList.remove('recording');
                 micButton.classList.remove('active');
                 // 抛出错误，让外层 catch 块处理按钮状态恢复
-                throw new Error(window.t ? window.t('error.noAudioTrack') : '没有可用的音频轨道');
+                throw new Error('没有可用的音频轨道');
             }
 
             await startAudioWorklet(stream);
@@ -2539,7 +2556,7 @@ function init_app() {
                         screenCaptureStream = tmp;
                     } else {
                         // 保持原有错误处理路径：让 catch 去接手
-                        throw (tmp instanceof Error ? tmp : new Error(window.t ? window.t('error.cameraStreamFailed') : '无法获取摄像头流'));
+                        throw (tmp instanceof Error ? tmp : new Error('无法获取摄像头流'));
                     }
                 } else {
 
@@ -2679,14 +2696,14 @@ function init_app() {
             let hint = '';
             switch (err.name) {
                 case 'NotAllowedError':
-                    hint = window.t ? window.t('camera.iosPermissionHint') : '请检查 iOS 设置 → Safari → 摄像头 权限是否为"允许"';
+                    hint = '请检查 iOS 设置 → Safari → 摄像头 权限是否为"允许"';
                     break;
                 case 'NotFoundError':
-                    hint = window.t ? window.t('camera.notDetected') : '未检测到摄像头设备';
+                    hint = '未检测到摄像头设备';
                     break;
                 case 'NotReadableError':
                 case 'AbortError':
-                    hint = window.t ? window.t('camera.occupied') : '摄像头被其它应用占用？关闭扫码/拍照应用后重试';
+                    hint = '摄像头被其它应用占用？关闭扫码/拍照应用后重试';
                     break;
             }
             showStatusToast(`${err.name}: ${err.message}${hint ? `\n${hint}` : ''}`, 5000);
@@ -5934,9 +5951,10 @@ function init_app() {
 
     // 启动 Agent 可用性定时检查（由 Agent 总开关打开时调用）
     window.startAgentAvailabilityCheck = function () {
-        // 清除之前的定时器
+        // 推送架构下不再使用轮询，只做一次检查
         if (agentCheckInterval) {
             clearInterval(agentCheckInterval);
+            agentCheckInterval = null;
         }
 
         // 重置 flags 同步时间，确保立即同步一次
@@ -5947,8 +5965,7 @@ function init_app() {
         // 立即检查一次
         checkAgentCapabilities();
 
-        // 每1秒检查一次
-        agentCheckInterval = setInterval(checkAgentCapabilities, 1000);
+        // no-op: event-driven
     };
 
     // 停止 Agent 可用性定时检查（由 Agent 总开关关闭时调用）
@@ -6698,12 +6715,15 @@ function init_app() {
         console.log('[App] Agent开关事件监听器绑定完成');
     };
 
-    // Agent 任务 HUD 推送逻辑（由 WebSocket 事件驱动）
+    // Agent 任务 HUD 轮询逻辑
+    let agentTaskPollingInterval = null;
     let agentTaskTimeUpdateInterval = null;
 
-    // 启动任务 HUD（无轮询）
+    // 启动任务状态轮询
     window.startAgentTaskPolling = function () {
-        console.log('[App] 启动 Agent 任务状态展示');
+        if (agentTaskPollingInterval) return;
+
+        console.log('[App] 启动 Agent 任务状态轮询');
 
         // 确保 HUD 已创建并显示
         if (window.live2dManager) {
@@ -6711,18 +6731,23 @@ function init_app() {
             window.live2dManager.showAgentTaskHUD();
         }
 
-        // 启动时拉取一次初始状态，后续依赖 WebSocket 推送更新
-        fetchAndUpdateTaskStatusOnce();
+        // 推送架构下由 WebSocket 的 agent_task_update 驱动，不再拉取 /task_status
+        agentTaskPollingInterval = true;
 
-        if (!agentTaskTimeUpdateInterval) {
-            // 每秒更新运行时间显示
-            agentTaskTimeUpdateInterval = setInterval(updateTaskRunningTimes, 1000);
-        }
+        // 每秒更新运行时间显示
+        agentTaskTimeUpdateInterval = setInterval(updateTaskRunningTimes, 1000);
     };
 
-    // 停止任务 HUD 更新
+    // 停止任务状态轮询
     window.stopAgentTaskPolling = function () {
-        console.log('[App] 停止 Agent 任务状态展示');
+        console.log('[App] 停止 Agent 任务状态轮询');
+
+        if (agentTaskPollingInterval) {
+            if (typeof agentTaskPollingInterval !== 'boolean') {
+                clearInterval(agentTaskPollingInterval);
+            }
+            agentTaskPollingInterval = null;
+        }
 
         if (agentTaskTimeUpdateInterval) {
             clearInterval(agentTaskTimeUpdateInterval);
@@ -6735,34 +6760,7 @@ function init_app() {
         }
     };
 
-    // 启动时获取一次任务状态
-    async function fetchAndUpdateTaskStatusOnce() {
-        try {
-            const response = await fetch('/api/agent/tasks');
-            if (!response.ok) {
-                console.warn('[App] 获取任务状态失败:', response.status);
-                return;
-            }
-
-            const data = await response.json();
-            if (window.live2dManager) {
-                const tasks = Array.isArray(data.tasks) ? data.tasks : [];
-                const payload = {
-                    success: true,
-                    tasks: tasks,
-                    total_count: tasks.length,
-                    running_count: tasks.filter(t => t && t.status === 'running').length,
-                    queued_count: tasks.filter(t => t && t.status === 'queued').length,
-                    completed_count: tasks.filter(t => t && t.status === 'completed').length,
-                    failed_count: tasks.filter(t => t && t.status === 'failed').length,
-                    timestamp: new Date().toISOString()
-                };
-                window.live2dManager.updateAgentTaskHUD(payload);
-            }
-        } catch (error) {
-            console.warn('[App] 获取初始任务状态出错:', error);
-        }
-    }
+    // 推送架构中任务状态由 WebSocket 事件驱动
 
     // 更新运行中任务的时间显示
     function updateTaskRunningTimes() {
@@ -8228,7 +8226,7 @@ function init_app() {
             // 1. 获取新角色的配置（包括 model_type）
             const charResponse = await fetch('/api/characters');
             if (!charResponse.ok) {
-                throw new Error(window.t ? window.t('error.characterConfigFailed') : '无法获取角色配置');
+                throw new Error('无法获取角色配置');
             }
             const charactersData = await charResponse.json();
             const catgirlConfig = charactersData['猫娘']?.[newCatgirl];
