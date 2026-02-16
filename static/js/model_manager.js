@@ -236,6 +236,10 @@ class DropdownManager {
         DropdownManager.instances.forEach(instance => { instance.hideDropdown(); });
     }
 
+    static updateAllButtonText() {
+        DropdownManager.instances.forEach(instance => { instance.updateButtonText(); });
+    }
+
     async showDropdown() {
         if (!this.dropdown || this.config.disabled) return;
 
@@ -1061,20 +1065,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 监听语言变化事件
     window.addEventListener('localechange', () => {
         updateUploadButtonText();
-        updateModelTypeButtonText();
-        updatePersistentExpressionButtonText();
-        updateLive2DModelSelectButtonText();
-        updateVRMModelSelectButtonText();
+        DropdownManager.updateAllButtonText();
     });
 
     // 监听i18next的languageChanged事件（更可靠）
     if (window.i18n && window.i18n.on) {
         window.i18n.on('languageChanged', () => {
             updateUploadButtonText();
-            updateModelTypeButtonText();
-            updatePersistentExpressionButtonText();
-            updateLive2DModelSelectButtonText();
-            updateVRMModelSelectButtonText();
+            DropdownManager.updateAllButtonText();
         });
     }
 
