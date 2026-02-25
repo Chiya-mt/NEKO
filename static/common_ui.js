@@ -3,6 +3,8 @@ const chatContainer = document.getElementById('chat-container');
 const chatContentWrapper = document.getElementById('chat-content-wrapper');
 const toggleBtn = document.getElementById('toggle-chat-btn');
 
+let isTransitioning = false;
+
 // 移动端检测（与 live2d.js 的 isMobileWidth 一致：基于窗口宽度）
 function uiIsMobileWidth() {
     return window.innerWidth <= 768;
@@ -251,11 +253,19 @@ if (toggleBtn) {
     toggleBtn.addEventListener('click', (event) => {
         event.stopPropagation();
 
+        // 如果正在过渡中，阻止切换
+        if (isTransitioning) {
+            return;
+        }
+
         // 如果刚刚发生了拖动，阻止切换
         if (justDragged) {
             justDragged = false;
             return;
         }
+
+        // 设置过渡标志
+        isTransitioning = true;
 
         // 移动端：仅折叠内容区与标题，不最小化整个容器，保持输入区常驻
         if (uiIsMobileWidth()) {
@@ -312,6 +322,8 @@ if (toggleBtn) {
                 // 展开后执行回弹，避免位置越界
                 triggerExpandSnap();
             }
+            // 动画结束后清除过渡标志
+            setTimeout(() => { isTransitioning = false; }, 350);
             return; // 移动端已处理，直接返回
         }
 
@@ -358,6 +370,8 @@ if (toggleBtn) {
             // 展开后执行回弹，避免位置越界
             triggerExpandSnap();
         }
+        // 动画结束后清除过渡标志
+        setTimeout(() => { isTransitioning = false; }, 350);
     });
 }
 
