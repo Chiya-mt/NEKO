@@ -8957,6 +8957,7 @@ function init_app() {
                 window.proactiveVisionInterval = proactiveVisionInterval;
                 window.renderQuality = renderQuality;
                 window.targetFrameRate = targetFrameRate;
+                window.mouseTrackingEnabled = true;
 
                 // 持久化首次启动设置，避免每次重新检测
                 saveSettings();
@@ -8976,6 +8977,7 @@ function init_app() {
             window.proactiveVisionInterval = proactiveVisionInterval;
             window.renderQuality = renderQuality;
             window.targetFrameRate = targetFrameRate;
+            window.mouseTrackingEnabled = true;
         }
     }
 

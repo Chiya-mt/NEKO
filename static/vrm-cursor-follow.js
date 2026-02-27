@@ -219,6 +219,10 @@ class CursorFollowController {
         this._neckBaseQuat = new THREE.Quaternion();
         this._headBaseQuat = new THREE.Quaternion();
 
+        // 骨骼默认姿态（用于禁用跟踪时恢复）
+        this._neckDefaultQuat = new THREE.Quaternion();
+        this._headDefaultQuat = new THREE.Quaternion();
+
         // 初始化滤波器
         const D = CURSOR_FOLLOW_DEFAULTS;
         this._eyeFilterX = new OneEuroFilter(D.eyeOneEuroMinCutoff, D.eyeOneEuroBeta, D.eyeOneEuroDCutoff);
@@ -411,6 +415,9 @@ class CursorFollowController {
         if (neckBone) this._neckBaseQuat.copy(neckBone.quaternion);
         if (headBone) this._headBaseQuat.copy(headBone.quaternion);
 
+        // ── 保存默认姿态（用于禁用跟踪时恢复） ──
+        this._saveBonesDefaultQuat();
+
         // ── 参考位置 ──
         const refBone = headBone || neckBone;
         refBone.getWorldPosition(this._headWorldPos);
@@ -586,12 +593,51 @@ class CursorFollowController {
         this._enabled = enabled;
         if (!enabled) {
             this.reset();
+            // 恢复骨骼到默认姿态
+            this._restoreBonesToDefault();
         }
         console.log(`[CursorFollow] 鼠标跟踪已${enabled ? '启用' : '禁用'}`);
     }
 
     isEnabled() {
         return this._enabled;
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    //  恢复骨骼到默认姿态
+    // ════════════════════════════════════════════════════════════════
+    _restoreBonesToDefault() {
+        const vrm = this.manager?.currentModel?.vrm;
+        if (!vrm?.humanoid) return;
+
+        const neckBone = vrm.humanoid.getRawBoneNode('neck');
+        const headBone = vrm.humanoid.getRawBoneNode('head');
+
+        // 恢复到保存的默认姿态
+        if (neckBone && this._neckDefaultQuat) {
+            neckBone.quaternion.copy(this._neckDefaultQuat);
+        }
+        if (headBone && this._headDefaultQuat) {
+            headBone.quaternion.copy(this._headDefaultQuat);
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    //  保存骨骼默认姿态（在动画更新后调用）
+    // ════════════════════════════════════════════════════════════════
+    _saveBonesDefaultQuat() {
+        const vrm = this.manager?.currentModel?.vrm;
+        if (!vrm?.humanoid) return;
+
+        const neckBone = vrm.humanoid.getRawBoneNode('neck');
+        const headBone = vrm.humanoid.getRawBoneNode('head');
+
+        if (neckBone && this._neckDefaultQuat) {
+            this._neckDefaultQuat.copy(neckBone.quaternion);
+        }
+        if (headBone && this._headDefaultQuat) {
+            this._headDefaultQuat.copy(headBone.quaternion);
+        }
     }
 
     // ════════════════════════════════════════════════════════════════

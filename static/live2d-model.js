@@ -323,15 +323,12 @@ Live2DManager.prototype._configureLoadedModel = async function(model, modelPath,
         this.setupTouchZoom(model);
     }
 
-    // 启用鼠标跟踪（始终启用监听器，但内部根据设置决定是否执行眼睛跟踪）
-    // 注意：enableMouseTracking 包含悬浮菜单显示/隐藏逻辑，必须始终启用
-    const shouldEnableMouseTracking = options.mouseTracking !== false;
-    console.log(`[Live2D] 鼠标跟踪检查: window.mouseTrackingEnabled=${window.mouseTrackingEnabled}, shouldEnable=${shouldEnableMouseTracking}`);
-    if (shouldEnableMouseTracking) {
-        this.enableMouseTracking(model);
-    }
+    // 启用鼠标跟踪（始终启用监听器，内部根据设置决定是否执行眼睛跟踪）
+    // enableMouseTracking 包含悬浮菜单显示/隐藏逻辑，必须始终启用
+    this.enableMouseTracking(model);
     // 同步内部状态（眼睛跟踪是否启用）
     this._mouseTrackingEnabled = window.mouseTrackingEnabled !== false;
+    console.log(`[Live2D] 鼠标跟踪初始化: window.mouseTrackingEnabled=${window.mouseTrackingEnabled}, _mouseTrackingEnabled=${this._mouseTrackingEnabled}`);
 
     // 设置浮动按钮系统（在模型完全就绪后再绑定ticker回调）
     this.setupFloatingButtons(model);

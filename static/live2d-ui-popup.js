@@ -23,7 +23,7 @@ Live2DManager.prototype.createPopup = function (buttonId) {
         border: 'var(--neko-popup-border, 1px solid rgba(255,255,255,0.18))',  // 微妙高光边框（支持暗色模式）
         borderRadius: '8px',  // Fluent 标准圆角
         padding: '8px',
-        boxShadow: 'var(--neko-popup-shadow, 0 2px 4px rgba(0,0,0,0.04), 0 8px 16px rgba(0,0,0,0.08))',  // Fluent 多层阴影（支持暗色模式）
+        boxShadow: 'var(--neko-popup-shadow, 0 2px 4px rgba(0,0,0,0.04), 0 8px 16px rgba(0,0,0,0.08), 0 16px 32px rgba(0,0,0,0.04))',  // Fluent 多层阴影（支持暗色模式）
         display: 'none',
         flexDirection: 'column',
         gap: '6px',
@@ -375,14 +375,13 @@ Live2DManager.prototype._createAnimationSettingsSidePanel = function () {
         mouseTrackingCheckbox.checked = !mouseTrackingCheckbox.checked;
         window.mouseTrackingEnabled = mouseTrackingCheckbox.checked;
         updateMouseTrackingRowStyle();
-        console.log(`[Live2D] 跟踪鼠标开关切换: ${mouseTrackingCheckbox.checked}, window.mouseTrackingEnabled=${window.mouseTrackingEnabled}`);
 
         if (typeof window.saveNEKOSettings === 'function') window.saveNEKOSettings();
 
         if (window.live2dManager && typeof window.live2dManager.setMouseTrackingEnabled === 'function') {
             window.live2dManager.setMouseTrackingEnabled(mouseTrackingCheckbox.checked);
         }
-        console.log(`[Live2D] 跟踪鼠标已${mouseTrackingCheckbox.checked ? '开启' : '关闭'}`);
+        console.log(`[Live2D] 跟踪鼠标切换: enabled=${mouseTrackingCheckbox.checked}, window.mouseTrackingEnabled=${window.mouseTrackingEnabled}`);
     };
 
     mouseTrackingRow.addEventListener('click', (e) => {
