@@ -8921,8 +8921,14 @@ function init_app() {
                 // 帧率设置
                 targetFrameRate = settings.targetFrameRate ?? 60;
                 window.targetFrameRate = targetFrameRate;
-                // 鼠标跟踪设置
-                window.mouseTrackingEnabled = settings.mouseTrackingEnabled ?? true;
+                // 鼠标跟踪设置（严格转换为布尔值）
+                if (typeof settings.mouseTrackingEnabled === 'boolean') {
+                    window.mouseTrackingEnabled = settings.mouseTrackingEnabled;
+                } else if (typeof settings.mouseTrackingEnabled === 'string') {
+                    window.mouseTrackingEnabled = settings.mouseTrackingEnabled === 'true';
+                } else {
+                    window.mouseTrackingEnabled = true;
+                }
 
                 console.log('已加载设置:', {
                     proactiveChatEnabled: proactiveChatEnabled,

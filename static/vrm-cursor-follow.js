@@ -222,6 +222,8 @@ class CursorFollowController {
         // 骨骼默认姿态（用于禁用跟踪时恢复）
         this._neckDefaultQuat = new THREE.Quaternion();
         this._headDefaultQuat = new THREE.Quaternion();
+        this._hasNeckDefault = false;
+        this._hasHeadDefault = false;
 
         // 初始化滤波器
         const D = CURSOR_FOLLOW_DEFAULTS;
@@ -613,11 +615,11 @@ class CursorFollowController {
         const neckBone = vrm.humanoid.getRawBoneNode('neck');
         const headBone = vrm.humanoid.getRawBoneNode('head');
 
-        // 恢复到保存的默认姿态
-        if (neckBone && this._neckDefaultQuat) {
+        // 恢复到保存的默认姿态（仅在有效快照存在时）
+        if (neckBone && this._neckDefaultQuat && this._hasNeckDefault) {
             neckBone.quaternion.copy(this._neckDefaultQuat);
         }
-        if (headBone && this._headDefaultQuat) {
+        if (headBone && this._headDefaultQuat && this._hasHeadDefault) {
             headBone.quaternion.copy(this._headDefaultQuat);
         }
     }
@@ -634,9 +636,11 @@ class CursorFollowController {
 
         if (neckBone && this._neckDefaultQuat) {
             this._neckDefaultQuat.copy(neckBone.quaternion);
+            this._hasNeckDefault = true;
         }
         if (headBone && this._headDefaultQuat) {
             this._headDefaultQuat.copy(headBone.quaternion);
+            this._hasHeadDefault = true;
         }
     }
 

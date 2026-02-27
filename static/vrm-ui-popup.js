@@ -1632,6 +1632,11 @@ VRMManager.prototype.showPopup = function (buttonId, popup) {
             syncCheckbox(proactiveVisionCheckbox, window.proactiveVisionEnabled);
         }
 
+        const mouseTrackingCheckbox = popup.querySelector('#vrm-mouse-tracking-toggle');
+        if (mouseTrackingCheckbox && typeof window.mouseTrackingEnabled !== 'undefined') {
+            syncCheckbox(mouseTrackingCheckbox, window.mouseTrackingEnabled);
+        }
+
         if (window.CHAT_MODE_CONFIG) {
             window.CHAT_MODE_CONFIG.forEach(config => {
                 const checkbox = document.querySelector(`#vrm-proactive-${config.mode}-chat`);
