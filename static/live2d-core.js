@@ -85,6 +85,7 @@ class Live2DManager {
         this.savedModelParameters = null; // 保存的模型参数（从parameters.json加载），供定时器定期应用
         this._shouldApplySavedParams = false; // 是否应该应用保存的参数
         this._savedParamsTimer = null; // 保存参数应用的定时器
+        this._mouseTrackingEnabled = window.mouseTrackingEnabled !== false; // 鼠标跟踪启用状态
         
         // 模型加载锁，防止并发加载导致重复模型叠加
         this._isLoadingModel = false;
@@ -627,6 +628,32 @@ class Live2DManager {
         if (this._floatingButtons.screen) {
             this.setButtonActive('screen', isScreenSharing);
         }
+    }
+
+    /**
+     * 设置鼠标跟踪是否启用
+     * @param {boolean} enabled - 是否启用鼠标跟踪
+     */
+    setMouseTrackingEnabled(enabled) {
+        this._mouseTrackingEnabled = enabled;
+        window.mouseTrackingEnabled = enabled;
+
+        if (enabled) {
+            // 重新启用时，如果模型存在且没有鼠标跟踪监听器，则启用
+            if (this.currentModel && !this._mouseTrackingListener) {
+                this.enableMouseTracking(this.currentModel);
+            }
+        } else {
+            this.isFocusing = false;
+        }
+    }
+
+    /**
+     * 获取鼠标跟踪是否启用
+     * @returns {boolean}
+     */
+    isMouseTrackingEnabled() {
+        return this._mouseTrackingEnabled !== false;
     }
 }
 

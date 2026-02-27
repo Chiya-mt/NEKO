@@ -8796,6 +8796,9 @@ function init_app() {
         const currentTargetFrameRate = typeof window.targetFrameRate !== 'undefined'
             ? window.targetFrameRate
             : targetFrameRate;
+        const currentMouseTracking = typeof window.mouseTrackingEnabled !== 'undefined'
+            ? window.mouseTrackingEnabled
+            : true;
 
         const settings = {
             proactiveChatEnabled: currentProactive,
@@ -8809,7 +8812,8 @@ function init_app() {
             proactiveVisionInterval: currentProactiveVisionInterval,
             proactivePersonalChatEnabled: currentPersonalChat,
             renderQuality: currentRenderQuality,
-            targetFrameRate: currentTargetFrameRate
+            targetFrameRate: currentTargetFrameRate,
+            mouseTrackingEnabled: currentMouseTracking
         };
         localStorage.setItem('project_neko_settings', JSON.stringify(settings));
 
@@ -8917,6 +8921,8 @@ function init_app() {
                 // 帧率设置
                 targetFrameRate = settings.targetFrameRate ?? 60;
                 window.targetFrameRate = targetFrameRate;
+                // 鼠标跟踪设置
+                window.mouseTrackingEnabled = settings.mouseTrackingEnabled ?? true;
 
                 console.log('已加载设置:', {
                     proactiveChatEnabled: proactiveChatEnabled,

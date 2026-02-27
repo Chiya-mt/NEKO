@@ -740,6 +740,7 @@ Live2DManager.prototype.enableMouseTracking = function (model, options = {}) {
             return;
         }
 
+        // isFocusing 用于控制眼睛跟踪，悬浮菜单显示不受影响
         this.isFocusing = true;
         if (lockIcon) lockIcon.style.display = 'block';
         // 锁定状态下不显示浮动菜单
@@ -996,7 +997,9 @@ Live2DManager.prototype.enableMouseTracking = function (model, options = {}) {
                     canvasEl.style.cursor = 'grab';
                 }
                 // 只有当鼠标在模型附近时才调用 focus，避免 Electron 透明窗口中的全局跟踪问题
-                if (this.isFocusing) {
+                // 同时检查鼠标跟踪是否启用
+                const isMouseTrackingEnabled = this.isMouseTrackingEnabled ? this.isMouseTrackingEnabled() : (window.mouseTrackingEnabled !== false);
+                if (this.isFocusing && isMouseTrackingEnabled) {
                     model.focus(pointer.x, pointer.y);
                 }
             } else {

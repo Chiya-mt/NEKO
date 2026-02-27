@@ -1298,7 +1298,8 @@
             "renderQuality": "Качество рендеринга",
             "renderQualityHigh": "Высокое",
             "renderQualityLow": "Низкое",
-            "renderQualityMedium": "Среднее"
+            "renderQualityMedium": "Среднее",
+            "mouseTracking": "Отслеживание мыши"
         }
     },
     "subtitle": {

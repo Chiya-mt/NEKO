@@ -515,6 +515,74 @@ VRMManager.prototype._createAnimationSettingsSidePanel = function () {
     fpsRow.appendChild(fpsValue);
     container.appendChild(fpsRow);
 
+    // --- 跟踪鼠标开关 ---
+    const mouseTrackingRow = document.createElement('div');
+    Object.assign(mouseTrackingRow.style, { display: 'flex', alignItems: 'center', gap: '8px', width: '100%', marginTop: '4px' });
+
+    const mouseTrackingLabel = document.createElement('span');
+    mouseTrackingLabel.textContent = window.t ? window.t('settings.toggles.mouseTracking') : '跟踪鼠标';
+    mouseTrackingLabel.setAttribute('data-i18n', 'settings.toggles.mouseTracking');
+    Object.assign(mouseTrackingLabel.style, { fontSize: '12px', color: 'var(--neko-popup-text, #333)', flex: '1' });
+
+    const mouseTrackingCheckbox = document.createElement('input');
+    mouseTrackingCheckbox.type = 'checkbox';
+    mouseTrackingCheckbox.id = 'vrm-mouse-tracking-toggle';
+    mouseTrackingCheckbox.checked = window.mouseTrackingEnabled !== false;
+    Object.assign(mouseTrackingCheckbox.style, { display: 'none' });
+
+    const { indicator: mouseTrackingIndicator, updateStyle: updateMouseTrackingStyle } = this._createCheckIndicator();
+    updateMouseTrackingStyle(mouseTrackingCheckbox.checked);
+
+    const updateMouseTrackingRowStyle = () => {
+        updateMouseTrackingStyle(mouseTrackingCheckbox.checked);
+        mouseTrackingRow.style.background = mouseTrackingCheckbox.checked
+            ? 'var(--neko-popup-selected-bg, rgba(68,183,254,0.1))'
+            : 'transparent';
+    };
+    updateMouseTrackingRowStyle();
+
+    const handleMouseTrackingToggle = () => {
+        mouseTrackingCheckbox.checked = !mouseTrackingCheckbox.checked;
+        window.mouseTrackingEnabled = mouseTrackingCheckbox.checked;
+        updateMouseTrackingRowStyle();
+
+        if (typeof window.saveNEKOSettings === 'function') window.saveNEKOSettings();
+
+        if (window.vrmManager && typeof window.vrmManager.setMouseTrackingEnabled === 'function') {
+            window.vrmManager.setMouseTrackingEnabled(mouseTrackingCheckbox.checked);
+        }
+        console.log(`[VRM] 跟踪鼠标已${mouseTrackingCheckbox.checked ? '开启' : '关闭'}`);
+    };
+
+    mouseTrackingRow.addEventListener('click', (e) => {
+        e.stopPropagation();
+        handleMouseTrackingToggle();
+    });
+    mouseTrackingIndicator.addEventListener('click', (e) => {
+        e.stopPropagation();
+        handleMouseTrackingToggle();
+    });
+    mouseTrackingLabel.addEventListener('click', (e) => {
+        e.stopPropagation();
+        handleMouseTrackingToggle();
+    });
+
+    mouseTrackingRow.addEventListener('mouseenter', () => {
+        if (mouseTrackingCheckbox.checked) {
+            mouseTrackingRow.style.background = 'var(--neko-popup-selected-hover, rgba(68,183,254,0.15))';
+        } else {
+            mouseTrackingRow.style.background = 'var(--neko-popup-hover-subtle, rgba(68,183,254,0.08))';
+        }
+    });
+    mouseTrackingRow.addEventListener('mouseleave', () => {
+        updateMouseTrackingRowStyle();
+    });
+
+    mouseTrackingRow.appendChild(mouseTrackingCheckbox);
+    mouseTrackingRow.appendChild(mouseTrackingIndicator);
+    mouseTrackingRow.appendChild(mouseTrackingLabel);
+    container.appendChild(mouseTrackingRow);
+
     document.body.appendChild(container);
     return container;
 };
@@ -984,6 +1052,53 @@ VRMManager.prototype._createToggleItem = function (toggle, popup) {
     }));
 
     return toggleItem;
+};
+
+// 创建圆形指示器和对勾的辅助方法
+VRMManager.prototype._createCheckIndicator = function () {
+    const indicator = document.createElement('div');
+    Object.assign(indicator.style, {
+        width: '20px',
+        height: '20px',
+        borderRadius: '50%',
+        border: '2px solid var(--neko-popup-indicator-border, #ccc)',
+        backgroundColor: 'transparent',
+        cursor: 'pointer',
+        flexShrink: '0',
+        transition: 'all 0.2s ease',
+        position: 'relative',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+    });
+
+    const checkmark = document.createElement('div');
+    checkmark.textContent = '✓';
+    Object.assign(checkmark.style, {
+        color: '#fff',
+        fontSize: '13px',
+        fontWeight: 'bold',
+        lineHeight: '1',
+        opacity: '0',
+        transition: 'opacity 0.2s ease',
+        pointerEvents: 'none',
+        userSelect: 'none'
+    });
+    indicator.appendChild(checkmark);
+
+    const updateStyle = (checked) => {
+        if (checked) {
+            indicator.style.backgroundColor = 'var(--neko-popup-active, #2a7bc4)';
+            indicator.style.borderColor = 'var(--neko-popup-active, #2a7bc4)';
+            checkmark.style.opacity = '1';
+        } else {
+            indicator.style.backgroundColor = 'transparent';
+            indicator.style.borderColor = 'var(--neko-popup-indicator-border, #ccc)';
+            checkmark.style.opacity = '0';
+        }
+    };
+
+    return { indicator, updateStyle };
 };
 
 // 创建设置开关项

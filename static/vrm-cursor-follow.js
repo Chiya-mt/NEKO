@@ -111,6 +111,9 @@ class CursorFollowController {
         // ── 眼睛目标 Object3D ──
         this.eyesTarget = null;
 
+        // ── 鼠标跟踪启用状态 ──
+        this._enabled = true;
+
         // ── 鼠标状态 ──
         this._rawMouseX = 0;
         this._rawMouseY = 0;
@@ -336,6 +339,8 @@ class CursorFollowController {
     // ════════════════════════════════════════════════════════════════
     updateTarget(delta) {
         if (!this._initialized || !this.eyesTarget || !this.manager) return;
+        // 检查是否启用鼠标跟踪
+        if (!this._enabled) return;
         // 首次 pointermove 前跳过，避免未知鼠标坐标导致首帧朝向异常
         if (!this._hasPointerInput) return;
 
@@ -384,6 +389,8 @@ class CursorFollowController {
     // ════════════════════════════════════════════════════════════════
     applyHead(delta) {
         if (!this._initialized || !this.manager) return;
+        // 检查是否启用鼠标跟踪
+        if (!this._enabled) return;
 
         const vrm = this.manager?.currentModel?.vrm;
         if (!vrm?.humanoid) return;
@@ -570,6 +577,21 @@ class CursorFollowController {
             this.eyesTarget.position.copy(headPos).addScaledVector(camDir, CURSOR_FOLLOW_DEFAULTS.lookAtDistance);
             this._desiredTargetPos.copy(this.eyesTarget.position);
         }
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    //  启用/禁用鼠标跟踪
+    // ════════════════════════════════════════════════════════════════
+    setEnabled(enabled) {
+        this._enabled = enabled;
+        if (!enabled) {
+            this.reset();
+        }
+        console.log(`[CursorFollow] 鼠标跟踪已${enabled ? '启用' : '禁用'}`);
+    }
+
+    isEnabled() {
+        return this._enabled;
     }
 
     // ════════════════════════════════════════════════════════════════

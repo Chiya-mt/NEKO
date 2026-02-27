@@ -48,6 +48,7 @@ class VRMManager {
 
         // CursorFollow 控制器（眼睛注视 + 头/脖子跟随）
         this._cursorFollow = null;
+        this._mouseTrackingEnabled = window.mouseTrackingEnabled !== false; // 鼠标跟踪启用状态
         this._initThreePromise = null;
         this._isDisposed = false;
         this._activeLoadToken = 0;
@@ -245,6 +246,12 @@ class VRMManager {
             }
             if (!this._cursorFollow._initialized) {
                 this._cursorFollow.init(this);
+            }
+            // 同步鼠标跟踪启用状态
+            const isEnabled = window.mouseTrackingEnabled !== false;
+            console.log(`[VRM] 鼠标跟踪检查: window.mouseTrackingEnabled=${window.mouseTrackingEnabled}, isEnabled=${isEnabled}`);
+            if (this._cursorFollow.isEnabled() !== isEnabled) {
+                this._cursorFollow.setEnabled(isEnabled);
             }
             // CursorFollow 拥有自己的 eyesTarget，旧 _lookAtTarget 不再需要
             return;
@@ -1245,6 +1252,27 @@ class VRMManager {
         this._isInitialized = false;
 
         console.log('[VRM Manager] VRM 资源清理完成');
+    }
+
+    /**
+     * 设置鼠标跟踪是否启用
+     * @param {boolean} enabled - 是否启用鼠标跟踪
+     */
+    setMouseTrackingEnabled(enabled) {
+        this._mouseTrackingEnabled = enabled;
+        window.mouseTrackingEnabled = enabled;
+
+        if (this._cursorFollow) {
+            this._cursorFollow.setEnabled(enabled);
+        }
+    }
+
+    /**
+     * 获取鼠标跟踪是否启用
+     * @returns {boolean}
+     */
+    isMouseTrackingEnabled() {
+        return this._mouseTrackingEnabled !== false;
     }
 }
 

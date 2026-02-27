@@ -1298,7 +1298,8 @@
             "frameRate": "프레임 레이트",
             "frameRateLow": "30fps",
             "frameRateMedium": "45fps",
-            "frameRateHigh": "60fps"
+            "frameRateHigh": "60fps",
+            "mouseTracking": "마우스 추적"
         }
     },
     "subtitle": {
