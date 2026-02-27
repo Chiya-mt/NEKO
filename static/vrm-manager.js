@@ -665,14 +665,19 @@ class VRMManager {
                 // 3. 设置 lookAt 目标
                 if (this.currentModel.vrm.lookAt) {
                     if (this._cursorFollow && this._cursorFollow.eyesTarget) {
-                        this.currentModel.vrm.lookAt.target = this._cursorFollow.eyesTarget;
+                        if (this.currentModel.vrm.lookAt.target !== this._cursorFollow.eyesTarget) {
+                            this.currentModel.vrm.lookAt.target = this._cursorFollow.eyesTarget;
+                        }
                     } else {
                         if (this._lookAtTarget && this._lookAtDesiredPoint) {
                             const smoothTime = Math.max(0.01, this._lookAtSmoothTime);
                             const alpha = Math.min(1, 1 - Math.exp(-delta / smoothTime));
                             this._lookAtTarget.position.lerp(this._lookAtDesiredPoint, alpha);
                         }
-                        this.currentModel.vrm.lookAt.target = this._lookAtTarget || this.camera;
+                        const fallbackLookAtTarget = this._lookAtTarget || this.camera;
+                        if (this.currentModel.vrm.lookAt.target !== fallbackLookAtTarget) {
+                            this.currentModel.vrm.lookAt.target = fallbackLookAtTarget;
+                        }
                     }
                 }
 
@@ -728,6 +733,35 @@ class VRMManager {
 
     toggleSpringBone(enable) {
         this.enablePhysics = enable;
+    }
+
+    /**
+     * 设置鼠标追踪性能档位
+     * @param {'none'|'low'|'medium'|'high'} level
+     */
+    setCursorFollowPerformance(level = 'high') {
+        const normalized = typeof level === 'string' ? level.toLowerCase() : 'high';
+        const finalLevel = (normalized === 'none' || normalized === 'low' || normalized === 'medium' || normalized === 'high')
+            ? normalized
+            : 'high';
+
+        if (this._cursorFollow && typeof this._cursorFollow.setPerformanceLevel === 'function') {
+            this._cursorFollow.setPerformanceLevel(finalLevel);
+        }
+        // 保留全局状态，便于初始化前设置
+        window.cursorFollowPerformanceLevel = finalLevel;
+        return finalLevel;
+    }
+
+    /**
+     * 获取当前鼠标追踪性能档位
+     * @returns {'none'|'low'|'medium'|'high'}
+     */
+    getCursorFollowPerformance() {
+        if (this._cursorFollow && typeof this._cursorFollow.getPerformanceLevel === 'function') {
+            return this._cursorFollow.getPerformanceLevel();
+        }
+        return window.cursorFollowPerformanceLevel || 'high';
     }
 
     /**
