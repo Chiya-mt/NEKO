@@ -1335,12 +1335,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                             body: JSON.stringify(lightingData)
                         }
                     );
-
-                    if (!lightingResult.success) {
-                        console.warn('保存光照设置失败:', lightingResult.error);
-                    }
+                } else {
+                    var lightingResult = null;
                 }
 
+                var idleAnimationSaved = false;
                 const idleAnimSel = document.getElementById('idle-animation-select');
                 if (idleAnimSel && idleAnimSel.value) {
                     try {
@@ -1353,18 +1352,33 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 },
                                 body: JSON.stringify({
                                     model_type: 'vrm',
-                                    vrm_animation: idleAnimSel.value
+                                    vrm_animation: idleAnimSel.value,
+                                    idle_animation: idleAnimSel.value
                                 })
                             }
                         );
+                        idleAnimationSaved = true;
                     } catch (e) {
                         console.warn('保存待机动作失败:', e);
                     }
                 }
+            } else {
+                var lightingResult = null;
+                var idleAnimationSaved = false;
             }
 
             const modelDisplayName = currentModelType === 'vrm' ? `VRM: ${modelName}` : modelName;
-            showStatus(t('live2d.modelSettingsSaved', `已保存模型和光照设置`, { name: modelDisplayName }), 2000);
+            let saveMessage;
+            if (currentModelType === 'vrm' && ambient && main && (!lightingResult || !lightingResult.success)) {
+                saveMessage = t('live2d.modelSavedLightingFailed', `已保存模型设置，光照设置保存失败`, { name: modelDisplayName });
+            } else if (idleAnimSel && idleAnimSel.value && !idleAnimationSaved) {
+                saveMessage = t('live2d.modelSavedIdleFailed', `已保存模型设置，待机动作保存失败`, { name: modelDisplayName });
+            } else if (currentModelType === 'vrm') {
+                saveMessage = t('live2d.modelSettingsSaved', `已保存模型和光照设置`, { name: modelDisplayName });
+            } else {
+                saveMessage = t('live2d.modelSettingsSaved', `已保存模型设置`, { name: modelDisplayName });
+            }
+            showStatus(saveMessage, 2000);
             return true;
 
         } catch (error) {
