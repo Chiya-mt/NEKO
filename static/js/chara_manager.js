@@ -133,7 +133,7 @@ const PROFILE_NAME_CONTAINS_SLASH_KEY = 'character.profileNameContainsSlash';
 
 function translateBackendError(errorMessage) {
     if (!errorMessage || typeof errorMessage !== 'string') return errorMessage;
-    if (errorMessage.includes('不能包含"/"') || errorMessage.includes('不能包含"/符号')) {
+    if (errorMessage.includes('路径分隔符') || errorMessage.includes('不能包含"/"')) {
         return tOrFallback(PROFILE_NAME_CONTAINS_SLASH_KEY, errorMessage);
     }
     if (errorMessage.includes('档案名为必填项')) {
@@ -184,7 +184,7 @@ function flashProfileNameTooLong(inputEl) {
 function flashProfileNameContainsSlash(inputEl) {
     if (!inputEl) return;
 
-    const msg = tOrFallback(PROFILE_NAME_CONTAINS_SLASH_KEY, '档案名不能包含"/"符号');
+    const msg = tOrFallback(PROFILE_NAME_CONTAINS_SLASH_KEY, '档案名不能包含路径分隔符');
 
     flashProfileNameError(inputEl, msg);
 }
@@ -255,10 +255,10 @@ function attachProfileNameLimiter(inputEl) {
         if (inputEl.readOnly || inputEl.disabled) return;
         const before = inputEl.value;
         
-        // 检查是否包含"/"符号
-        if (before.includes('/')) {
+        // 检查是否包含路径分隔符
+        if (before.includes('/') || before.includes('\\')) {
             const caret = (typeof inputEl.selectionStart === 'number') ? inputEl.selectionStart : null;
-            inputEl.value = before.replace(/\//g, '');
+            inputEl.value = before.replace(/[/\\]/g, '');
             if (caret !== null) {
                 const newPos = Math.min(caret, inputEl.value.length);
                 try { inputEl.setSelectionRange(newPos, newPos); } catch (e) { /* ignore */ }
@@ -1868,14 +1868,14 @@ window.renameMaster = async function (oldName) {
             normalize: (v) => {
                 const trimmed = String(v ?? '').trim();
                 _renameMasterDidOverLimit = profileNameCountUnits(trimmed) > PROFILE_NAME_MAX_UNITS;
-                _renameMasterContainsSlash = trimmed.includes('/');
-                return profileNameTrimToMaxUnits(trimmed.replace(/\//g, ''), PROFILE_NAME_MAX_UNITS);
+                _renameMasterContainsSlash = trimmed.includes('/') || trimmed.includes('\\');
+                return profileNameTrimToMaxUnits(trimmed.replace(/[/\\]/g, ''), PROFILE_NAME_MAX_UNITS);
             },
             validator: (v) => {
                 const trimmed = String(v ?? '').trim();
                 if (!trimmed) return tOrFallback(NEW_PROFILE_NAME_REQUIRED_KEY, '新档案名不能为空');
-                if (trimmed.includes('/')) {
-                    return tOrFallback(PROFILE_NAME_CONTAINS_SLASH_KEY, '档案名不能包含"/"符号');
+                if (trimmed.includes('/') || trimmed.includes('\\')) {
+                    return tOrFallback(PROFILE_NAME_CONTAINS_SLASH_KEY, '档案名不能包含路径分隔符');
                 }
                 if (profileNameCountUnits(trimmed) > PROFILE_NAME_MAX_UNITS) {
                     return tOrFallback(PROFILE_NAME_TOO_LONG_KEY, '档案名过长');
@@ -1944,14 +1944,14 @@ window.renameCatgirl = async function (oldName) {
             normalize: (v) => {
                 const trimmed = String(v ?? '').trim();
                 _renameCatgirlDidOverLimit = profileNameCountUnits(trimmed) > PROFILE_NAME_MAX_UNITS;
-                _renameCatgirlContainsSlash = trimmed.includes('/');
-                return profileNameTrimToMaxUnits(trimmed.replace(/\//g, ''), PROFILE_NAME_MAX_UNITS);
+                _renameCatgirlContainsSlash = trimmed.includes('/') || trimmed.includes('\\');
+                return profileNameTrimToMaxUnits(trimmed.replace(/[/\\]/g, ''), PROFILE_NAME_MAX_UNITS);
             },
             validator: (v) => {
                 const trimmed = String(v ?? '').trim();
                 if (!trimmed) return tOrFallback(NEW_PROFILE_NAME_REQUIRED_KEY, '新档案名不能为空');
-                if (trimmed.includes('/')) {
-                    return tOrFallback(PROFILE_NAME_CONTAINS_SLASH_KEY, '档案名不能包含"/"符号');
+                if (trimmed.includes('/') || trimmed.includes('\\')) {
+                    return tOrFallback(PROFILE_NAME_CONTAINS_SLASH_KEY, '档案名不能包含路径分隔符');
                 }
                 if (profileNameCountUnits(trimmed) > PROFILE_NAME_MAX_UNITS) {
                     return tOrFallback(PROFILE_NAME_TOO_LONG_KEY, '档案名过长');
