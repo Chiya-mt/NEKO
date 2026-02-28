@@ -1277,12 +1277,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                 }
                 modelData.vrm = vrmPath;
-                if (vrmAnimation) modelData.vrm_animation = vrmAnimation;
-
-                // 获取待机动作并一起保存
                 const idleAnimSel = document.getElementById('idle-animation-select');
-                if (idleAnimSel && idleAnimSel.value) {
+                if (vrmAnimation) {
+                    modelData.vrm_animation = vrmAnimation;
+                } else if (idleAnimSel && idleAnimSel.value) {
                     modelData.vrm_animation = idleAnimSel.value;
+                }
+
+                if (idleAnimSel && idleAnimSel.value) {
                     modelData.idle_animation = idleAnimSel.value;
                 }
             } else {
