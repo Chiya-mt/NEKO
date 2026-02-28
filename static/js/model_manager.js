@@ -1278,12 +1278,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
                 modelData.vrm = vrmPath;
                 if (vrmAnimation) modelData.vrm_animation = vrmAnimation;
+
+                // 获取待机动作并一起保存
+                const idleAnimSel = document.getElementById('idle-animation-select');
+                if (idleAnimSel && idleAnimSel.value) {
+                    modelData.vrm_animation = idleAnimSel.value;
+                    modelData.idle_animation = idleAnimSel.value;
+                }
             } else {
                 modelData.live2d = modelName;
                 if (itemId) modelData.item_id = itemId;
             }
 
-            // 3. 使用【专用模型接口】保存模型设置
+            // 3. 使用【专用模型接口】保存模型设置（包含光照和待机动作）
             const modelResult = await RequestHelper.fetchJson(
                 `/api/characters/catgirl/l2d/${encodeURIComponent(lanlanName)}`,
                 {
@@ -1300,82 +1307,62 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             let lightingResult = null;
-            let idleAnimationSaved = false;
             const ambient = document.getElementById('ambient-light-slider');
             const main = document.getElementById('main-light-slider');
 
-            // 4. 如果是 VRM 模式，单独保存光照设置
-            if (currentModelType === 'vrm') {
-                if (ambient && main) {
-                    const lightingData = {
-                        lighting: {
-                            ambient: parseFloat(ambient.value),
-                            main: parseFloat(main.value),
-                            fill: 0.0,
-                            rim: 0.0,
-                            top: 0.0,
-                            bottom: 0.0
-                        }
-                    };
+            // 4. 如果是 VRM 模式，单独保存光照设置（仅光照部分独立保存）
+            if (currentModelType === 'vrm' && ambient && main) {
+                const lightingData = {
+                    lighting: {
+                        ambient: parseFloat(ambient.value),
+                        main: parseFloat(main.value),
+                        fill: 0.0,
+                        rim: 0.0,
+                        top: 0.0,
+                        bottom: 0.0
+                    }
+                };
 
-                    const exposure = document.getElementById('exposure-slider');
-                    if (exposure) {
-                        lightingData.lighting.exposure = parseFloat(exposure.value);
-                    }
-                    const tonemapping = document.getElementById('tonemapping-select');
-                    if (tonemapping) {
-                        lightingData.lighting.toneMapping = parseInt(tonemapping.value);
-                    }
-
-                    try {
-                        lightingResult = await RequestHelper.fetchJson(
-                            `/api/characters/catgirl/${encodeURIComponent(lanlanName)}/lighting`,
-                            {
-                                method: 'PUT',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                },
-                                body: JSON.stringify(lightingData)
-                            }
-                        );
-                    } catch (e) {
-                        console.warn('保存光照设置失败:', e);
-                        lightingResult = { success: false, error: e.message };
-                    }
+                const exposure = document.getElementById('exposure-slider');
+                if (exposure) {
+                    lightingData.lighting.exposure = parseFloat(exposure.value);
+                }
+                const tonemapping = document.getElementById('tonemapping-select');
+                if (tonemapping) {
+                    lightingData.lighting.toneMapping = parseInt(tonemapping.value);
                 }
 
-                const idleAnimSel = document.getElementById('idle-animation-select');
-                if (idleAnimSel && idleAnimSel.value) {
-                    try {
-                        await RequestHelper.fetchJson(
-                            `/api/characters/catgirl/l2d/${encodeURIComponent(lanlanName)}`,
-                            {
-                                method: 'PUT',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                },
-                                body: JSON.stringify({
-                                    model_type: 'vrm',
-                                    vrm_animation: idleAnimSel.value,
-                                    idle_animation: idleAnimSel.value
-                                })
-                            }
-                        );
-                        idleAnimationSaved = true;
-                    } catch (e) {
-                        console.warn('保存待机动作失败:', e);
-                    }
+                try {
+                    lightingResult = await RequestHelper.fetchJson(
+                        `/api/characters/catgirl/${encodeURIComponent(lanlanName)}/lighting`,
+                        {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify(lightingData)
+                        }
+                    );
+                } catch (e) {
+                    console.warn('保存光照设置失败:', e);
+                    lightingResult = { success: false, error: e.message };
                 }
             }
 
             const modelDisplayName = currentModelType === 'vrm' ? `VRM: ${modelName}` : modelName;
             let saveMessage;
-            if (currentModelType === 'vrm' && ambient && main && (!lightingResult || !lightingResult.success)) {
+            const lightingFailed = currentModelType === 'vrm' && ambient && main && (!lightingResult || !lightingResult.success);
+            const idleAnimSel = document.getElementById('idle-animation-select');
+            const idleFailed = currentModelType === 'vrm' && idleAnimSel && idleAnimSel.value && !modelResult.success;
+
+            if (lightingFailed && idleFailed) {
+                saveMessage = t('live2d.modelLightingIdleFailed', `已保存模型设置，光照和待机动作保存失败`, { name: modelDisplayName });
+            } else if (lightingFailed) {
                 saveMessage = t('live2d.modelSavedLightingFailed', `已保存模型设置，光照设置保存失败`, { name: modelDisplayName });
-            } else if (currentModelType === 'vrm' && idleAnimationSaved === false && document.getElementById('idle-animation-select')?.value) {
+            } else if (idleFailed) {
                 saveMessage = t('live2d.modelSavedIdleFailed', `已保存模型设置，待机动作保存失败`, { name: modelDisplayName });
             } else if (currentModelType === 'vrm' && ambient && main) {
-                saveMessage = t('live2d.modelSettingsSaved', `已保存模型和光照设置`, { name: modelDisplayName });
+                saveMessage = t('live2d.modelSettingsSavedWithLighting', `已保存模型和光照设置`, { name: modelDisplayName });
             } else if (currentModelType === 'vrm') {
                 saveMessage = t('live2d.modelSettingsSaved', `已保存模型设置`, { name: modelDisplayName });
             } else {
