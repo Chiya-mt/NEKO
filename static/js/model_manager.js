@@ -1299,11 +1299,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 throw new Error(modelResult.error || '保存模型设置失败');
             }
 
+            let lightingResult = null;
+            let idleAnimationSaved = false;
+            const ambient = document.getElementById('ambient-light-slider');
+            const main = document.getElementById('main-light-slider');
+
             // 4. 如果是 VRM 模式，单独保存光照设置
             if (currentModelType === 'vrm') {
-                const ambient = document.getElementById('ambient-light-slider');
-                const main = document.getElementById('main-light-slider');
-
                 if (ambient && main) {
                     const lightingData = {
                         lighting: {
@@ -1325,7 +1327,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         lightingData.lighting.toneMapping = parseInt(tonemapping.value);
                     }
 
-                    const lightingResult = await RequestHelper.fetchJson(
+                    lightingResult = await RequestHelper.fetchJson(
                         `/api/characters/catgirl/${encodeURIComponent(lanlanName)}/lighting`,
                         {
                             method: 'PUT',
@@ -1335,11 +1337,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                             body: JSON.stringify(lightingData)
                         }
                     );
-                } else {
-                    var lightingResult = null;
                 }
 
-                var idleAnimationSaved = false;
                 const idleAnimSel = document.getElementById('idle-animation-select');
                 if (idleAnimSel && idleAnimSel.value) {
                     try {
@@ -1362,16 +1361,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                         console.warn('保存待机动作失败:', e);
                     }
                 }
-            } else {
-                var lightingResult = null;
-                var idleAnimationSaved = false;
             }
 
             const modelDisplayName = currentModelType === 'vrm' ? `VRM: ${modelName}` : modelName;
             let saveMessage;
             if (currentModelType === 'vrm' && ambient && main && (!lightingResult || !lightingResult.success)) {
                 saveMessage = t('live2d.modelSavedLightingFailed', `已保存模型设置，光照设置保存失败`, { name: modelDisplayName });
-            } else if (idleAnimSel && idleAnimSel.value && !idleAnimationSaved) {
+            } else if (currentModelType === 'vrm' && idleAnimationSaved === false && document.getElementById('idle-animation-select')?.value) {
                 saveMessage = t('live2d.modelSavedIdleFailed', `已保存模型设置，待机动作保存失败`, { name: modelDisplayName });
             } else if (currentModelType === 'vrm') {
                 saveMessage = t('live2d.modelSettingsSaved', `已保存模型和光照设置`, { name: modelDisplayName });
