@@ -530,6 +530,8 @@ async def update_catgirl_l2d(name: str, request: Request):
                     # 使用验证后的值
                     set_reserved(characters['猫娘'][name], 'avatar', 'vrm', 'animation', vrm_animation_str)
                     logger.debug(f"已保存角色 {name} 的VRM模型 {vrm_model} 和动作 {vrm_animation_str}")
+            else:
+                logger.debug(f"已保存角色 {name} 的VRM模型 {vrm_model}，动作字段未变更")
             
             # 处理 idle_animation：支持显式清空（传 null 或空字符串）
             if 'idle_animation' in data:
@@ -537,7 +539,6 @@ async def update_catgirl_l2d(name: str, request: Request):
                     set_reserved(characters['猫娘'][name], 'avatar', 'vrm', 'idle_animation', None)
                     logger.debug(f"已保存角色 {name} 的VRM待机动作已清空")
                 else:
-                    # 验证 idle_animation 路径：与 vrm_animation 相同的验证规则
                     idle_animation_str = str(idle_animation).strip()
                     
                     if '://' in idle_animation_str or idle_animation_str.startswith('data:'):
@@ -570,8 +571,6 @@ async def update_catgirl_l2d(name: str, request: Request):
                     
                     set_reserved(characters['猫娘'][name], 'avatar', 'vrm', 'idle_animation', idle_animation_str)
                     logger.debug(f"已保存角色 {name} 的VRM待机动作 {idle_animation_str}")
-            else:
-                logger.debug(f"已保存角色 {name} 的VRM模型 {vrm_model}，动作字段未变更")
         else:
             set_reserved(characters['猫娘'][name], 'avatar', 'vrm', 'model_path', '')
             set_reserved(characters['猫娘'][name], 'avatar', 'vrm', 'animation', None)

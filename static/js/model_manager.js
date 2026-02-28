@@ -1352,15 +1352,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             const modelDisplayName = currentModelType === 'vrm' ? `VRM: ${modelName}` : modelName;
             let saveMessage;
             const lightingFailed = currentModelType === 'vrm' && ambient && main && (!lightingResult || !lightingResult.success);
-            const idleAnimSel = document.getElementById('idle-animation-select');
-            const idleFailed = currentModelType === 'vrm' && idleAnimSel && idleAnimSel.value && !modelResult.success;
 
-            if (lightingFailed && idleFailed) {
-                saveMessage = t('live2d.modelLightingIdleFailed', `已保存模型设置，光照和待机动作保存失败`, { name: modelDisplayName });
-            } else if (lightingFailed) {
+            if (lightingFailed) {
                 saveMessage = t('live2d.modelSavedLightingFailed', `已保存模型设置，光照设置保存失败`, { name: modelDisplayName });
-            } else if (idleFailed) {
-                saveMessage = t('live2d.modelSavedIdleFailed', `已保存模型设置，待机动作保存失败`, { name: modelDisplayName });
             } else if (currentModelType === 'vrm' && ambient && main) {
                 saveMessage = t('live2d.modelSettingsSavedWithLighting', `已保存模型和光照设置`, { name: modelDisplayName });
             } else if (currentModelType === 'vrm') {
