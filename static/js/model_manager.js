@@ -3356,7 +3356,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                         updateMotionPlayButtonIcon();
                         console.log('[ModelManager] 动作预览结束，自动恢复到初始状态');
                         if (window.live2dManager && typeof window.live2dManager.smoothResetToInitialState === 'function') {
-                            window.live2dManager.smoothResetToInitialState().catch(() => {});
+                            window.live2dManager.smoothResetToInitialState().catch(() => {
+                                if (window.live2dManager && typeof window.live2dManager.clearExpression === 'function') {
+                                    window.live2dManager.clearExpression();
+                                }
+                            });
+                        } else if (window.live2dManager && typeof window.live2dManager.clearExpression === 'function') {
+                            window.live2dManager.clearExpression();
                         }
                     };
                     try {

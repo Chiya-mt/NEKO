@@ -164,6 +164,12 @@ Live2DManager.prototype.clearExpression = function() {
  * @returns {Promise} 淡出完成后 resolve
  */
 Live2DManager.prototype.smoothResetToInitialState = function(duration = 800) {
+    // 钳制 duration：非法值回退到默认，范围 [0, 5000]
+    if (!Number.isFinite(duration) || duration < 0) {
+        duration = 800;
+    }
+    duration = Math.min(duration, 5000);
+
     return new Promise((resolve) => {
         this._cancelSmoothReset();
 
