@@ -1,6 +1,17 @@
 // 允许的来源列表
 const ALLOWED_ORIGINS = [window.location.origin];
 
+function getVoiceDisplayName(voiceId, voiceData, voiceOwners) {
+    const owners = voiceOwners && voiceOwners[voiceId];
+    if (voiceData && voiceData.prefix) {
+        return voiceData.prefix;
+    } else if (owners && owners.length > 0) {
+        return owners.join(', ');
+    } else {
+        return voiceId;
+    }
+}
+
 // 自动调整textarea高度
 function autoResizeTextarea(textarea) {
     // 重置高度为auto以计算正确的高度
@@ -1481,17 +1492,6 @@ function showCatgirlForm(key, container) {
             if (form) showActionButtons(form); // 删除字段后显示操作按钮
         }
     };
-
-    function getVoiceDisplayName(voiceId, voiceData, voiceOwners) {
-        const owners = voiceOwners && voiceOwners[voiceId];
-        if (voiceData && voiceData.prefix) {
-            return voiceData.prefix;
-        } else if (owners && owners.length > 0) {
-            return owners.join(', ');
-        } else {
-            return voiceId;
-        }
-    }
 
     // 在 form.onsubmit 之前添加
     async function loadVoices() {
