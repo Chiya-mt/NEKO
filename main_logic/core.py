@@ -776,6 +776,14 @@ class LLMSessionManager:
         realtime_config = self._config_manager.get_model_api_config('realtime')
         self.core_api_type = realtime_config.get('api_type', '') or self._config_manager.get_core_config().get('CORE_API_TYPE', '')
         self.audio_api_key = self._config_manager.get_core_config()['AUDIO_API_KEY']
+
+        # 每次启动会话前都清理一次无效 voice_id，避免角色配置残留旧音色导致启动异常
+        try:
+            cleaned_count = self._config_manager.cleanup_invalid_voice_ids()
+            if cleaned_count > 0:
+                logger.info(f"🧹 start_session 前已清理 {cleaned_count} 个无效 voice_id")
+        except Exception as e:
+            logger.warning(f"⚠️ start_session 清理无效 voice_id 失败，继续启动会话: {e}")
         
         # 重新读取角色配置以获取最新的voice_id（支持角色切换后的音色热更新）
         _, _, _, self.lanlan_basic_config, _, _, _, _, _, _ = self._config_manager.get_character_data()
