@@ -196,6 +196,13 @@ Live2DManager.prototype.smoothResetToInitialState = function(duration = 800) {
                 return;
             }
 
+            // 防御性检查：确保当前模型仍是绑定时的模型，避免切模后旧 delta 写入新模型
+            if (self.currentModel.internalModel !== emitter) {
+                self._cancelSmoothReset();
+                resolve();
+                return;
+            }
+
             const cm = self.currentModel.internalModel.coreModel;
             const paramCount = cm.getParameterCount();
 
@@ -347,6 +354,12 @@ Live2DManager.prototype._installManualExpressionOverride = function(params, fade
 
     const onBeforeUpdate = function() {
         if (!self.currentModel || !self.currentModel.internalModel || !self.currentModel.internalModel.coreModel) {
+            self._removeManualExpressionOverride();
+            return;
+        }
+
+        // 防御性检查：确保当前模型仍是绑定时的模型，避免切模后跨模型写入
+        if (self.currentModel.internalModel !== emitter) {
             self._removeManualExpressionOverride();
             return;
         }

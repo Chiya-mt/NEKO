@@ -3479,9 +3479,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                 window._expressionPreviewRestoreTimer = null;
             }
 
+            // 创建预览标记，防止快速连续点击时并发 await 导致多个定时器共存
+            window._currentExpressionPreviewToken = (window._currentExpressionPreviewToken || 0) + 1;
+            const previewToken = window._currentExpressionPreviewToken;
+
             // expression 方法是异步的，需要使用 await
             // 注意：Live2D SDK 的 expression 方法可能返回 null/undefined 但仍然成功播放
             const result = await currentModel.expression(expressionName);
+
+            // await 返回后检查标记是否仍然匹配（可能已被新的预览覆盖）
+            if (window._currentExpressionPreviewToken !== previewToken) return;
+
             // Live2D SDK 的 expression 方法成功时可能返回 falsy 值，这里改为检查是否抛出异常
             // 如果没有抛出异常，就认为播放成功
             showStatus(t('live2d.playingExpression', `播放表情: ${expressionName}`, { expression: expressionName }), 1000);
@@ -3489,6 +3497,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             // 设置自动恢复定时器：5秒后平滑恢复到初始状态
             window._expressionPreviewRestoreTimer = setTimeout(() => {
                 window._expressionPreviewRestoreTimer = null;
+                if (window._currentExpressionPreviewToken !== previewToken) return; // 已被新的预览覆盖
+                window._currentExpressionPreviewToken = null;
                 console.log('[ModelManager] 表情预览结束，自动恢复到初始状态');
                 if (window.live2dManager && typeof window.live2dManager.smoothResetToInitialState === 'function') {
                     window.live2dManager.smoothResetToInitialState().catch(e => {
