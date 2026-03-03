@@ -101,6 +101,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         triggerConfetti(confettiContainer);
                     }
                 } else {
+                    emptyHintText.classList.remove('flash');
                     emptyHintText.textContent = t('live2d.parameterEditor.emptyHint', '里面什么也没有！');
                 }
             }
@@ -1078,6 +1079,9 @@ function displayParameters() {
 
         const groupHeader = document.createElement('div');
         groupHeader.className = 'group-header';
+        groupHeader.setAttribute('tabindex', '0');
+        groupHeader.setAttribute('role', 'button');
+        groupHeader.setAttribute('aria-expanded', 'false');
 
         const groupHeaderText = document.createElement('span');
         groupHeaderText.className = 'group-header-text';
@@ -1102,8 +1106,18 @@ function displayParameters() {
         const groupContent = document.createElement('div');
         groupContent.className = 'group-content';
 
-        groupHeader.addEventListener('click', () => {
-            groupDiv.classList.toggle('expanded');
+        const toggleGroup = () => {
+            const isExpanded = groupDiv.classList.toggle('expanded');
+            groupHeader.setAttribute('aria-expanded', isExpanded);
+        };
+
+        groupHeader.addEventListener('click', toggleGroup);
+
+        groupHeader.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                toggleGroup();
+            }
         });
 
         groupDiv.appendChild(groupHeader);

@@ -380,6 +380,7 @@ color: #22b3ff;
 }
 
 .group-content-empty {
+position: relative;
 display: flex;
 align-items: center;
 justify-content: center;
@@ -523,7 +524,7 @@ padding: 0 8px;
 }
 
 .parameter-group.expanded .group-content {
-max-height: 2000px;
+max-height: none;
 padding: 8px;
 }
 
