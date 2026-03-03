@@ -65,28 +65,53 @@ document.addEventListener('DOMContentLoaded', function () {
     const emptyHintText = document.querySelector('.empty-hint-text');
     const confettiContainer = document.querySelector('.confetti-container');
     
+    let hintTextTimer = null;
+    let hintClassTimer = null;
+    
     if (emptyGroup && emptyHeader) {
-        emptyHeader.addEventListener('click', () => {
+        const toggleEmptyGroup = () => {
             const wasExpanded = emptyGroup.classList.contains('expanded');
             emptyGroup.classList.toggle('expanded');
+            emptyHeader.setAttribute('aria-expanded', !wasExpanded);
             
             if (emptyHintText) {
+                if (hintTextTimer) {
+                    clearTimeout(hintTextTimer);
+                    hintTextTimer = null;
+                }
+                if (hintClassTimer) {
+                    clearTimeout(hintClassTimer);
+                    hintClassTimer = null;
+                }
+                
                 if (!wasExpanded) {
                     emptyHintText.classList.add('flash');
-                    setTimeout(() => {
-                        emptyHintText.textContent = t('live2d.parameterEditor.foundYou', '你找到我了！');
+                    hintTextTimer = setTimeout(() => {
+                        if (emptyGroup.classList.contains('expanded')) {
+                            emptyHintText.textContent = t('live2d.parameterEditor.foundYou', '你找到我了！');
+                        }
+                        hintTextTimer = null;
                     }, 150);
-                    setTimeout(() => {
+                    hintClassTimer = setTimeout(() => {
                         emptyHintText.classList.remove('flash');
+                        hintClassTimer = null;
                     }, 500);
                     
-                    // 触发彩纸效果
                     if (confettiContainer) {
                         triggerConfetti(confettiContainer);
                     }
                 } else {
                     emptyHintText.textContent = t('live2d.parameterEditor.emptyHint', '里面什么也没有！');
                 }
+            }
+        };
+        
+        emptyHeader.addEventListener('click', toggleEmptyGroup);
+        
+        emptyHeader.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                toggleEmptyGroup();
             }
         });
     }

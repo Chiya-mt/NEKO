@@ -424,10 +424,10 @@ opacity: 0;
 }
 
 .confetti.active {
-animation: confettiFall 1s ease-out forwards;
+animation: confetti-fall 1s ease-out forwards;
 }
 
-@keyframes confettiFall {
+@keyframes confetti-fall {
 0% {
 opacity: 1;
 transform: translateY(0) rotate(0deg) scale(1);
@@ -448,10 +448,10 @@ transition: all 0.3s ease;
 }
 
 .empty-hint-text.flash {
-animation: textFlash 0.5s ease;
+animation: text-flash 0.5s ease;
 }
 
-@keyframes textFlash {
+@keyframes text-flash {
 0% { opacity: 1; }
 25% { opacity: 0; color: #22b3ff; }
 50% { opacity: 0; text-shadow: 0 0 20px #22b3ff, 0 0 40px #22b3ff; }
