@@ -1048,6 +1048,7 @@ function renderHiddenCatgirls(forceExpand = false) {
             if (hiddenList.style.display !== 'none') {
                 hiddenList.style.display = 'none';
                 if (arrow) arrow.classList.remove('expanded');
+                hiddenHeader.setAttribute('aria-expanded', 'false');
             } else {
                 hiddenList.innerHTML = '';
                 const catgirls = characterData['猫娘'] || {};
@@ -1079,6 +1080,7 @@ function renderHiddenCatgirls(forceExpand = false) {
                 
                 hiddenList.style.display = 'block';
                 if (arrow) arrow.classList.add('expanded');
+                hiddenHeader.setAttribute('aria-expanded', 'true');
             }
         };
     }
@@ -1116,16 +1118,18 @@ function renderHiddenCatgirls(forceExpand = false) {
 
 // 隐藏猫娘函数
 window.hideCatgirl = async function(key) {
-    const block = document.querySelector(`.catgirl-block[data-key="${key}"]`);
-    if (!block) {
-        const blocks = document.querySelectorAll('.catgirl-block');
-        blocks.forEach(b => {
+    let block = null;
+    const blocks = document.querySelectorAll('.catgirl-block');
+    blocks.forEach(b => {
+        if (b.dataset.key === key) {
+            block = b;
+        } else {
             const title = b.querySelector('.catgirl-title');
             if (title && title.textContent === key) {
                 block = b;
             }
-        });
-    }
+        }
+    });
     
     if (!block) return;
     
@@ -1694,8 +1698,7 @@ function showCatgirlForm(key, container) {
         // 为新增的textarea添加自动调整高度功能
         attachTextareaAutoResize(newTextarea);
 
-        const newDeleteBtn = fieldRow.querySelector('button');
-        newDeleteBtn.addEventListener('click', formShowActionButtons);
+        delBtn.addEventListener('click', formShowActionButtons);
     };
 
     // 设置删除字段的全局函数
