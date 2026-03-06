@@ -513,6 +513,11 @@ async function loadCharacterData() {
         if (!resp.ok) {
             throw new Error(`HTTP error! status: ${resp.status}`);
         }
+        
+        if (thisRequestId !== currentRequestId) {
+            return;
+        }
+        
         characterData = await resp.json();
         
         try {
@@ -532,8 +537,11 @@ async function loadCharacterData() {
         }
         
         const hiddenKeys = getHiddenCatgirlKeys();
-        if (window._currentCatgirl && hiddenKeys.includes(window._currentCatgirl)) {
-            const updatedKeys = hiddenKeys.filter(k => k !== window._currentCatgirl);
+        const catgirlKeys = Object.keys(characterData['猫娘'] || {});
+        const validKeys = catgirlKeys.concat(window._currentCatgirl ? [window._currentCatgirl] : []);
+        const updatedKeys = hiddenKeys.filter(k => validKeys.includes(k));
+        
+        if (updatedKeys.length !== hiddenKeys.length) {
             localStorage.setItem('hidden_catgirls', JSON.stringify(updatedKeys));
         }
         
