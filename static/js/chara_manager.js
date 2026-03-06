@@ -38,10 +38,13 @@ function autoResizeTextarea(textarea) {
     textarea.style.height = newHeight + 'px';
 
     // 根据内容是否超过三行来决定是否显示滚动条
+    const fieldRow = textarea.closest('.field-row');
     if (contentHeight > maxContentHeight) {
         textarea.style.overflowY = 'auto';
+        if (fieldRow) fieldRow.classList.add('has-scrollbar');
     } else {
         textarea.style.overflowY = 'hidden';
+        if (fieldRow) fieldRow.classList.remove('has-scrollbar');
     }
 }
 
@@ -507,6 +510,11 @@ async function loadCharacterData() {
             throw new Error(`HTTP error! status: ${resp.status}`);
         }
         characterData = await resp.json();
+        
+        const currentResp = await fetch('/api/characters/current_catgirl');
+        const currentData = await currentResp.json();
+        window._currentCatgirl = currentData.current_catgirl || '';
+        
         renderMaster();
         renderCatgirls();
         updateSwitchButtons();
@@ -872,10 +880,14 @@ function renderCatgirls() {
     const list = document.getElementById('catgirl-list');
     list.innerHTML = '';
     const catgirls = characterData['猫娘'] || {};
+    const hiddenKeys = JSON.parse(localStorage.getItem('hidden_catgirls') || '[]');
     Object.keys(catgirls).forEach(key => {
+        if (hiddenKeys.includes(key)) return;
+        
         const cat = catgirls[key];
         const block = document.createElement('div');
         block.className = 'catgirl-block';
+        block.dataset.key = key;
 
         // header
         const header = document.createElement('div');
@@ -893,6 +905,23 @@ function renderCatgirls() {
         expandBtn.style.transition = 'transform 0.2s';
         expandBtn.style.transform = 'rotate(-90deg)';
         header.appendChild(expandBtn);
+
+        const currentCatgirl = window._currentCatgirl || '';
+        if (key !== currentCatgirl) {
+            const hideBtn = document.createElement('span');
+            hideBtn.className = 'catgirl-hide';
+            hideBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#40C5F1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px;cursor:pointer;"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+            hideBtn.title = window.t ? window.t('character.hideCatgirl') : '隐藏此猫娘';
+            hideBtn.style.marginRight = '8px';
+            hideBtn.style.userSelect = 'none';
+            hideBtn.dataset.catgirlKey = key;
+            hideBtn.onclick = function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                window.hideCatgirl(key);
+            };
+            header.appendChild(hideBtn);
+        }
 
         const titleSpan = document.createElement('span');
         titleSpan.className = 'catgirl-title';
@@ -973,6 +1002,182 @@ function renderCatgirls() {
         };
         list.appendChild(block);
     });
+
+    renderHiddenCatgirls();
+    updateSwitchButtons();
+}
+
+// 渲染已隐藏的猫娘列表
+function renderHiddenCatgirls(forceExpand = false) {
+    const hiddenArea = document.getElementById('hidden-catgirl-area');
+    const hiddenList = document.getElementById('hidden-catgirl-list');
+    const hiddenCountSpan = document.getElementById('hidden-catgirl-count');
+    const hiddenKeys = JSON.parse(localStorage.getItem('hidden_catgirls') || '[]');
+    
+    if (hiddenKeys.length === 0) {
+        hiddenArea.style.display = 'none';
+        return;
+    }
+    
+    if (hiddenCountSpan) {
+        const hiddenText = window.t ? window.t('character.hiddenCatgirls') : '已隐藏猫娘';
+        hiddenCountSpan.textContent = `${hiddenText} (${hiddenKeys.length})`;
+    }
+    
+    hiddenArea.style.display = 'block';
+    hiddenList.innerHTML = '';
+    
+    const currentDisplay = hiddenList.style.display;
+    const isCurrentlyExpanded = currentDisplay === 'block';
+    
+    if (!isCurrentlyExpanded && !forceExpand) {
+        hiddenList.style.display = 'none';
+    }
+    
+    const hiddenHeader = hiddenArea.querySelector('.hidden-catgirl-header');
+    if (hiddenHeader) {
+        const arrow = hiddenHeader.querySelector('.hidden-catgirl-arrow');
+        if (isCurrentlyExpanded || forceExpand) {
+            hiddenList.style.display = 'block';
+            if (arrow) arrow.classList.add('expanded');
+        } else {
+            if (arrow) arrow.classList.remove('expanded');
+        }
+        
+        hiddenHeader.onclick = function() {
+            if (hiddenList.style.display !== 'none') {
+                hiddenList.style.display = 'none';
+                if (arrow) arrow.classList.remove('expanded');
+            } else {
+                hiddenList.innerHTML = '';
+                const catgirls = characterData['猫娘'] || {};
+                hiddenKeys.forEach(k => {
+                    if (!catgirls[k]) return;
+                    
+                    const item = document.createElement('div');
+                    item.className = 'hidden-catgirl-item';
+                    item.style.cssText = 'display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: #fff; border-radius: 8px; margin-bottom: 8px; border: 1px solid #b3e5fc;';
+                    
+                    const nameSpan = document.createElement('span');
+                    nameSpan.textContent = k;
+                    nameSpan.style.color = '#40C5F1';
+                    nameSpan.style.fontWeight = '600';
+                    
+                    const unhideBtn = document.createElement('button');
+                    unhideBtn.className = 'btn sm';
+                    unhideBtn.style.background = '#40C5F1';
+                    unhideBtn.style.minWidth = '80px';
+                    unhideBtn.innerHTML = `<span data-i18n="character.show">${window.t ? window.t('character.show') : '显示'}</span>`;
+                    unhideBtn.onclick = function() {
+                        window.unhideCatgirl(k);
+                    };
+                    
+                    item.appendChild(nameSpan);
+                    item.appendChild(unhideBtn);
+                    hiddenList.appendChild(item);
+                });
+                
+                hiddenList.style.display = 'block';
+                if (arrow) arrow.classList.add('expanded');
+            }
+        };
+    }
+    
+    if (isCurrentlyExpanded || forceExpand) {
+        const catgirls = characterData['猫娘'] || {};
+        
+        hiddenKeys.forEach(key => {
+            if (!catgirls[key]) return;
+            
+            const item = document.createElement('div');
+            item.className = 'hidden-catgirl-item';
+            item.style.cssText = 'display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: #fff; border-radius: 8px; margin-bottom: 8px; border: 1px solid #b3e5fc;';
+            
+            const nameSpan = document.createElement('span');
+            nameSpan.textContent = key;
+            nameSpan.style.color = '#40C5F1';
+            nameSpan.style.fontWeight = '600';
+            
+            const unhideBtn = document.createElement('button');
+            unhideBtn.className = 'btn sm';
+            unhideBtn.style.background = '#40C5F1';
+            unhideBtn.style.minWidth = '80px';
+            unhideBtn.innerHTML = `<span data-i18n="character.show">${window.t ? window.t('character.show') : '显示'}</span>`;
+            unhideBtn.onclick = function() {
+                window.unhideCatgirl(key);
+            };
+            
+            item.appendChild(nameSpan);
+            item.appendChild(unhideBtn);
+            hiddenList.appendChild(item);
+        });
+    }
+}
+
+// 隐藏猫娘函数
+window.hideCatgirl = async function(key) {
+    const block = document.querySelector(`.catgirl-block[data-key="${key}"]`);
+    if (!block) {
+        const blocks = document.querySelectorAll('.catgirl-block');
+        blocks.forEach(b => {
+            const title = b.querySelector('.catgirl-title');
+            if (title && title.textContent === key) {
+                block = b;
+            }
+        });
+    }
+    
+    if (!block) return;
+    
+    const hiddenArea = document.getElementById('hidden-catgirl-area');
+    const hiddenList = document.getElementById('hidden-catgirl-list');
+    
+    const wasHidden = hiddenArea.style.display === 'none';
+    if (wasHidden) {
+        hiddenArea.style.display = 'block';
+        hiddenList.style.display = 'none';
+    }
+    
+    const hiddenAreaRect = hiddenArea.getBoundingClientRect();
+    const blockRect = block.getBoundingClientRect();
+    
+    const deltaX = hiddenAreaRect.left - blockRect.left;
+    const deltaY = hiddenAreaRect.top - blockRect.top;
+    
+    block.style.transition = 'transform 0.5s ease, opacity 0.5s ease';
+    block.style.transform = `translate(${deltaX}px, ${deltaY}px) scale(0.8)`;
+    block.style.opacity = '0';
+    
+    const hiddenKeys = JSON.parse(localStorage.getItem('hidden_catgirls') || '[]');
+    if (!hiddenKeys.includes(key)) {
+        hiddenKeys.push(key);
+        localStorage.setItem('hidden_catgirls', JSON.stringify(hiddenKeys));
+    }
+    
+    setTimeout(() => {
+        block.style.display = 'none';
+        block.style.transform = '';
+        block.style.opacity = '';
+        block.style.transition = '';
+        
+        const hiddenCountSpan = document.getElementById('hidden-catgirl-count');
+        if (hiddenCountSpan) {
+            const hiddenText = window.t ? window.t('character.hiddenCatgirls') : '已隐藏猫娘';
+            hiddenCountSpan.textContent = `${hiddenText} (${hiddenKeys.length})`;
+        }
+        
+        renderHiddenCatgirls();
+    }, 500);
+}
+
+// 取消隐藏猫娘函数
+window.unhideCatgirl = async function(key) {
+    const hiddenKeys = JSON.parse(localStorage.getItem('hidden_catgirls') || '[]');
+    const newHiddenKeys = hiddenKeys.filter(k => k !== key);
+    localStorage.setItem('hidden_catgirls', JSON.stringify(newHiddenKeys));
+    
+    renderCatgirls();
+    renderHiddenCatgirls();
 }
 
 // 随机颜色函数
@@ -1126,14 +1331,14 @@ function showCatgirlForm(key, container) {
             textareaEl.value = cat[k];
             fieldRow.appendChild(textareaEl);
 
+            wrapper.appendChild(fieldRow);
+
             const delBtn = document.createElement('button');
             delBtn.type = 'button';
             delBtn.className = 'btn sm delete';
             delBtn.innerHTML = deleteFieldText;
             delBtn.addEventListener('click', function () { deleteCatgirlField(this); });
-            fieldRow.appendChild(delBtn);
-
-            wrapper.appendChild(fieldRow);
+            wrapper.appendChild(delBtn);
             form.appendChild(wrapper);
 
             // 为渲染的textarea添加自动调整高度功能
@@ -1468,14 +1673,14 @@ function showCatgirlForm(key, container) {
         textareaEl.placeholder = '可输入详细描述';
         fieldRow.appendChild(textareaEl);
 
+        wrapper.appendChild(fieldRow);
+
         const delBtn = document.createElement('button');
         delBtn.type = 'button';
         delBtn.className = 'btn sm delete';
         delBtn.innerHTML = deleteFieldText;
         delBtn.addEventListener('click', function () { deleteCatgirlField(this); });
-        fieldRow.appendChild(delBtn);
-
-        wrapper.appendChild(fieldRow);
+        wrapper.appendChild(delBtn);
         form.insertBefore(wrapper, form.querySelector('.add-field-area'));
 
         // 新增字段后显示操作按钮
@@ -2254,6 +2459,7 @@ function updateSwitchButtons() {
         .then(response => response.json())
         .then(data => {
             const currentCatgirl = data.current_catgirl || '';
+            window._currentCatgirl = currentCatgirl;
             const catgirls = characterData['猫娘'] || {};
 
             Object.keys(catgirls).forEach(name => {
