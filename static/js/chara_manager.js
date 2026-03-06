@@ -1154,6 +1154,10 @@ function renderHiddenCatgirls(forceExpand = false) {
 
 // 隐藏猫娘函数
 window.hideCatgirl = async function(key) {
+    if (key === window._currentCatgirl) {
+        return;
+    }
+    
     let block = null;
     const blocks = document.querySelectorAll('.catgirl-block');
     blocks.forEach(b => {
@@ -1189,7 +1193,7 @@ window.hideCatgirl = async function(key) {
     block.style.opacity = '0';
     
     const hiddenKeys = getHiddenCatgirlKeys();
-    if (!hiddenKeys.includes(key)) {
+    if (key !== window._currentCatgirl && !hiddenKeys.includes(key)) {
         hiddenKeys.push(key);
         localStorage.setItem('hidden_catgirls', JSON.stringify(hiddenKeys));
     }
