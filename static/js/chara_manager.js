@@ -520,6 +520,10 @@ async function loadCharacterData() {
         
         characterData = await resp.json();
         
+        if (thisRequestId !== currentRequestId) {
+            return;
+        }
+        
         try {
             const currentResp = await fetch('/api/characters/current_catgirl');
             if (currentResp.ok) {
@@ -538,8 +542,7 @@ async function loadCharacterData() {
         
         const hiddenKeys = getHiddenCatgirlKeys();
         const catgirlKeys = Object.keys(characterData['猫娘'] || {});
-        const validKeys = catgirlKeys.concat(window._currentCatgirl ? [window._currentCatgirl] : []);
-        const updatedKeys = hiddenKeys.filter(k => validKeys.includes(k));
+        const updatedKeys = hiddenKeys.filter(k => catgirlKeys.includes(k));
         
         if (updatedKeys.length !== hiddenKeys.length) {
             localStorage.setItem('hidden_catgirls', JSON.stringify(updatedKeys));
