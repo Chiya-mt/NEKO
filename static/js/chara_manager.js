@@ -514,35 +514,36 @@ async function loadCharacterData() {
             throw new Error(`HTTP error! status: ${resp.status}`);
         }
         
-        if (thisRequestId !== currentRequestId) {
-            return;
-        }
-        
-        characterData = await resp.json();
+        const fetchedData = await resp.json();
         
         if (thisRequestId !== currentRequestId) {
             return;
         }
         
+        characterData = fetchedData;
+        
+        let fetchedCurrentCatgirl;
         try {
             const currentResp = await fetch('/api/characters/current_catgirl');
             if (currentResp.ok) {
                 const currentData = await currentResp.json();
-                window._currentCatgirl = currentData.current_catgirl || undefined;
+                fetchedCurrentCatgirl = currentData.current_catgirl || undefined;
             } else {
-                window._currentCatgirl = undefined;
+                fetchedCurrentCatgirl = undefined;
             }
         } catch (e) {
-            window._currentCatgirl = undefined;
+            fetchedCurrentCatgirl = undefined;
         }
         
         if (thisRequestId !== currentRequestId) {
             return;
         }
         
+        window._currentCatgirl = fetchedCurrentCatgirl;
+        
         const hiddenKeys = getHiddenCatgirlKeys();
         const catgirlKeys = Object.keys(characterData['猫娘'] || {});
-        const updatedKeys = hiddenKeys.filter(k => catgirlKeys.includes(k));
+        const updatedKeys = hiddenKeys.filter(k => catgirlKeys.includes(k) && k !== window._currentCatgirl);
         
         if (updatedKeys.length !== hiddenKeys.length) {
             localStorage.setItem('hidden_catgirls', JSON.stringify(updatedKeys));
