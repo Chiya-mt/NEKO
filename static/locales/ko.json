@@ -1149,7 +1149,7 @@
         "deleteCatgirl": "NEKO 삭제",
         "hideCatgirl": "이 NEKO 숨기기",
         "hiddenCatgirls": "숨겨진 NEKO",
-        "show": "표시",
+        "show": "숨김 해제",
         "advancedSettings": "고급 설정",
         "modelSettings": "모델 설정",
         "modelNotSet": "설정되지 않음",

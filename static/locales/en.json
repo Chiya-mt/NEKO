@@ -1149,7 +1149,7 @@
         "deleteCatgirl": "Delete NEKO",
         "hideCatgirl": "Hide this NEKO",
         "hiddenCatgirls": "Hidden NEKOs",
-        "show": "Show",
+        "show": "Unhide",
         "advancedSettings": "Advanced Settings",
         "modelSettings": "Model Settings",
         "modelNotSet": "Not Set",
