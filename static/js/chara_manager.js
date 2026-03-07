@@ -529,10 +529,10 @@ async function loadCharacterData() {
                 const currentData = await currentResp.json();
                 fetchedCurrentCatgirl = currentData.current_catgirl || undefined;
             } else {
-                fetchedCurrentCatgirl = undefined;
+                fetchedCurrentCatgirl = window._currentCatgirl;
             }
         } catch (e) {
-            fetchedCurrentCatgirl = undefined;
+            fetchedCurrentCatgirl = window._currentCatgirl;
         }
         
         if (thisRequestId !== currentRequestId) {
@@ -543,10 +543,17 @@ async function loadCharacterData() {
         
         const hiddenKeys = getHiddenCatgirlKeys();
         const catgirlKeys = Object.keys(characterData['猫娘'] || {});
-        const updatedKeys = hiddenKeys.filter(k => catgirlKeys.includes(k) && k !== window._currentCatgirl);
         
-        if (updatedKeys.length !== hiddenKeys.length) {
-            localStorage.setItem('hidden_catgirls', JSON.stringify(updatedKeys));
+        if (fetchedCurrentCatgirl) {
+            const updatedKeys = hiddenKeys.filter(k => catgirlKeys.includes(k) && k !== fetchedCurrentCatgirl);
+            if (updatedKeys.length !== hiddenKeys.length) {
+                localStorage.setItem('hidden_catgirls', JSON.stringify(updatedKeys));
+            }
+        } else {
+            const updatedKeys = hiddenKeys.filter(k => catgirlKeys.includes(k));
+            if (updatedKeys.length !== hiddenKeys.length) {
+                localStorage.setItem('hidden_catgirls', JSON.stringify(updatedKeys));
+            }
         }
         
         renderMaster();
